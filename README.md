@@ -9,6 +9,10 @@ Lean 4 framework for building async-first JSON-RPC 2.0 servers and clients with 
 - Transport and framing abstractions (newline, content-length, HTTP-like).
 - Stdio subprocess client support (newline framing) plus end-to-end tests.
 
+## Documentation
+
+See `docs/README.md` for the full documentation suite.
+
 ## Repo Layout
 - `LeanWorker/JsonRpc/Structured.lean`: structured params helpers.
 - `LeanWorker/JsonRpc/Types.lean`: core JSON-RPC types + validation.
