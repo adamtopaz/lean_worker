@@ -117,7 +117,8 @@ def server : Server Unit Nat :=
   { handlers := handlers, notifications := notifications, transport := transport }
 
 -- run with initial context/state
-Async.block <| Server.run server () 0
+let state ← Std.Mutex.new 0
+Async.block <| Server.run server () state
 ```
 
 ## Client Example
@@ -145,7 +146,8 @@ def runServer : IO Unit := do
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.newline
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
-  Async.block <| Server.run server () 0
+  let state ← Std.Mutex.new 0
+  Async.block <| Server.run server () state
 ```
 
 ### Server over stdio (content-length framing)
@@ -160,7 +162,8 @@ def runServer : IO Unit := do
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
-  Async.block <| Server.run server () 0
+  let state ← Std.Mutex.new 0
+  Async.block <| Server.run server () state
 ```
 
 ### Client over stdio (spawned subprocess, newline framing)
@@ -206,7 +209,8 @@ def httpAddr : SocketAddress :=
 def runHttpServer : IO Unit := do
   let config : Http.ServerConfig := { addr := httpAddr }
   let listener ← Async.block <| Http.serve config fun transport =>
-    Server.run { handlers := handlers, notifications := notifications, transport := transport } () 0
+    let state ← Std.Mutex.new 0
+    Server.run { handlers := handlers, notifications := notifications, transport := transport } () state
   -- listener.shutdown when you want to stop
   Async.block listener.shutdown
 ```

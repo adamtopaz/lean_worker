@@ -25,6 +25,33 @@ assert resp.get("id") == 1, resp
 PY
 
 response=$(curl -sS --http1.1 -H 'Content-Type: application/json' -H 'Expect:' \
+  --data '{"jsonrpc":"2.0","id":10,"method":"counter.get"}' "$base_url")
+"$PYTHON" - "$response" <<'PY'
+import json,sys
+resp=json.loads(sys.argv[1])
+assert resp.get("result") == 0, resp
+assert resp.get("id") == 10, resp
+PY
+
+response=$(curl -sS --http1.1 -H 'Content-Type: application/json' -H 'Expect:' \
+  --data '{"jsonrpc":"2.0","id":11,"method":"counter.add","params":{"delta":2}}' "$base_url")
+"$PYTHON" - "$response" <<'PY'
+import json,sys
+resp=json.loads(sys.argv[1])
+assert resp.get("result") == 2, resp
+assert resp.get("id") == 11, resp
+PY
+
+response=$(curl -sS --http1.1 -H 'Content-Type: application/json' -H 'Expect:' \
+  --data '{"jsonrpc":"2.0","id":12,"method":"counter.get"}' "$base_url")
+"$PYTHON" - "$response" <<'PY'
+import json,sys
+resp=json.loads(sys.argv[1])
+assert resp.get("result") == 2, resp
+assert resp.get("id") == 12, resp
+PY
+
+response=$(curl -sS --http1.1 -H 'Content-Type: application/json' -H 'Expect:' \
   --data '{bad json' "$base_url")
 "$PYTHON" - "$response" <<'PY'
 import json,sys

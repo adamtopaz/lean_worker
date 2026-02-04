@@ -13,7 +13,8 @@ open Std.Internal.IO.Async
 
 def serve (addr : Std.Net.SocketAddress) : Async Transport.Tcp.Listener := do
   let config : Http.ServerConfig := { addr := addr }
+  let sharedState ← Std.Mutex.new FullServer.defaultState
   Http.serve config fun transport =>
-    FullServer.run transport
+    FullServer.run transport (state := sharedState)
 
 end LeanWorkerTest

@@ -20,7 +20,8 @@ def runServer : IO Unit := do
     LeanWorkerTest.lineByteTransportFromStreams stdin stdout log
   let transport ← Async.block <|
     LeanWorker.Async.framedTransport byteTransport Framing.newline
-  Async.block <| FullServer.run transport
+  let state ← Std.Mutex.new FullServer.defaultState
+  Async.block <| FullServer.run transport (state := state)
 
 end LeanWorkerTest
 

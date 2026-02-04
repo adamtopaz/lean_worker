@@ -128,8 +128,7 @@ structure Server (Context State : Type) where
   transport : Transport.Transport (Except Error Json) Json
   maxTasks : Option Nat := none
 
-def run (server : Server Context State) (ctx : Context) (initState : State) : Async Unit := do
-  let state ← Std.Mutex.new initState
+def run (server : Server Context State) (ctx : Context) (state : Std.Mutex State) : Async Unit := do
   let remainingTasks ← mainLoop state
   for task in remainingTasks do
     await task

@@ -37,7 +37,7 @@ def server
 def run
     (transport : Transport.Transport (Except Error Lean.Json) Lean.Json)
     (ctx : FullContext := defaultContext)
-    (state : FullState := defaultState) : Async Unit :=
+    (state : Std.Mutex FullState) : Async Unit :=
   Server.run (server transport) ctx state
 
 end FullServer

@@ -199,10 +199,11 @@ def buildContext (cfg : CliConfig) : FullServer.FullContext :=
 
 def runServer
     (cfg : CliConfig)
-    (transport : Transport.Transport (Except Error Json) Json) : Async Unit := do
+    (transport : Transport.Transport (Except Error Json) Json)
+    (state : Std.Mutex FullServer.FullState) : Async Unit := do
   let server : Server FullServer.FullContext FullServer.FullState :=
     { FullServer.server transport with maxTasks := cfg.maxTasks? }
-  Server.run server (buildContext cfg) FullServer.defaultState
+  Server.run server (buildContext cfg) state
 
 def runStdio (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit) : IO Unit := do
   let stdin ← IO.getStdin
@@ -218,7 +219,8 @@ def runStdio (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit)
   let framing := framingFromMode cfg.framing
   let transport ← Async.block <|
     LeanWorker.Async.framedTransport byteTransport framing
-  Async.block <| runServer cfg transport
+  let state ← Std.Mutex.new FullServer.defaultState
+  Async.block <| runServer cfg transport state
 
 partial def waitLoop : IO Unit := do
   IO.sleep 1000
@@ -232,9 +234,10 @@ def runTcp (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit) :
     | .error message =>
       throw <| IO.userError message
   let framing := framingFromMode cfg.framing
+  let sharedState ← Std.Mutex.new FullServer.defaultState
   let handle : Transport.ByteTransport → Async Unit := fun byteTransport => do
     let transport ← LeanWorker.Async.framedTransport byteTransport framing
-    runServer cfg transport
+    runServer cfg transport sharedState
   let listener ← Async.block <|
     Transport.Tcp.listenByteTransport addr handle (log := log)
   log .info s!"listening on {cfg.host}:{cfg.port}"
