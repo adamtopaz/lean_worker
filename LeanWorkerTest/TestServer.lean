@@ -2,8 +2,8 @@ module
 
 public import LeanWorker
 public import LeanWorker.Client
+public import LeanWorker.Transport.Line
 public import LeanWorkerTest.FullServer
-public import LeanWorkerTest.Support
 
 public section
 
@@ -17,7 +17,7 @@ def runServer : IO Unit := do
   let stdout ← IO.getStdout
   let log ← LeanWorker.Client.stderrLogger "SERVER"
   let byteTransport ← Async.block <|
-    LeanWorkerTest.lineByteTransportFromStreams stdin stdout log
+    LeanWorker.Transport.lineByteTransportFromStreams stdin stdout log
   let transport ← Async.block <|
     LeanWorker.Async.framedTransport byteTransport Framing.newline
   let state ← Std.Mutex.new FullServer.defaultState

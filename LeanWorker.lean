@@ -4,6 +4,7 @@ public import LeanWorker.JsonRpc.Structured
 public import LeanWorker.JsonRpc.Types
 public import LeanWorker.Transport.Types
 public import LeanWorker.Transport.Tcp
+public import LeanWorker.Transport.Line
 public import LeanWorker.Framing.Types
 public import LeanWorker.Framing.Newline
 public import LeanWorker.Framing.ContentLength

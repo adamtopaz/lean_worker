@@ -3,11 +3,11 @@ module
 public import LeanWorker
 public import LeanWorker.Client
 public import LeanWorker.Transport.Tcp
+public import LeanWorker.Transport.Line
 public import LeanWorker.Framing.Newline
 public import LeanWorker.Framing.ContentLength
 public import LeanWorker.Framing.HttpLike
 public import LeanWorkerTest.FullServer
-public import LeanWorkerTest.Support
 public import Std.Internal.Async.Basic
 
 public section
@@ -211,7 +211,7 @@ def runStdio (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit)
   let byteTransport ← Async.block <|
     match cfg.framing with
     | .newline =>
-      LeanWorkerTest.lineByteTransportFromStreams stdin stdout log
+      LeanWorker.Transport.lineByteTransportFromStreams stdin stdout log
     | .contentLength =>
       LeanWorker.Client.byteTransportFromStreams stdin stdout log
     | .httpLike =>
