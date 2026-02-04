@@ -21,10 +21,10 @@ structure RawClient where
 
 def spawnRawClient : IO RawClient := do
   let cwd ← IO.currentDir
-  let serverPath := cwd / ".lake" / "build" / "bin" / "test_server"
   let child ← IO.Process.spawn {
-    cmd := serverPath.toString,
-    args := #[],
+    cmd := "lake",
+    args := #["exe", "test_server"],
+    cwd := some cwd,
     stdin := .piped,
     stdout := .piped,
     stderr := .inherit
