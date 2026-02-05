@@ -1,6 +1,7 @@
 module
 
 public import LeanWorkerTest.Tests.Support
+public import LeanWorkerTest.StdioClientServerTest
 public import LeanWorkerTest.Tests.JsonRpc
 public import LeanWorkerTest.Tests.Batch
 public import LeanWorkerTest.Tests.Errors
@@ -11,6 +12,7 @@ public import LeanWorkerTest.Tests.Http
 public section
 
 def main : IO Unit := do
+  LeanWorkerTest.runTest "spawn stdio client server" LeanWorkerTest.testSpawnStdioClientServer
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
   LeanWorkerTest.runTest "invalid request" LeanWorkerTest.testInvalidRequest
   LeanWorkerTest.runTest "empty batch" LeanWorkerTest.testEmptyBatch
