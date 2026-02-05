@@ -1,6 +1,6 @@
 module
 
-public import LeanWorker.Transport.Streams
+public import LeanWorker.Transport.Line
 public import LeanWorker.Transport.Logging
 public import LeanWorker.Async.Loops
 public import LeanWorker.Framing.Newline
@@ -47,7 +47,7 @@ def spawnStdioTransport
     let _ ← child.wait
     return
   let byteTransport ←
-    byteTransportFromStreams stdoutStream stdinStream log shutdownAction
+    lineByteTransportFromStreams stdoutStream stdinStream log shutdownAction
   LeanWorker.Async.framedTransport byteTransport Framing.newline
 
 end Transport
