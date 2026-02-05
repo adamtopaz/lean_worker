@@ -39,5 +39,8 @@ instance : FromStructured Json.Structured where
 instance : ToStructured Json.Structured where
   toStructured params := params
 
+instance [FromJson α] : FromStructured α where 
+  fromStructured? j := fromJson? <| toJson j 
+
 end JsonRpc
 end LeanWorker
