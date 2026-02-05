@@ -21,7 +21,10 @@ structure AddParams where
 
 instance : FromStructured AddParams where
   fromStructured? params := do
-    let kvs ← JsonRpc.expectObj params
+    let kvs ←
+      match params with
+      | .obj kvs => return kvs
+      | _ => throw "object params expected"
     let aJson ← JsonRpc.requireField kvs "a"
     let bJson ← JsonRpc.requireField kvs "b"
     let a ← aJson.getInt?
@@ -50,4 +53,4 @@ When a `FromStructured` instance fails, the server helpers map the failure to:
 - `Error.invalidParams` for requests
 - No response for notifications
 
-This logic is implemented in `LeanWorker/JsonRpc/Types.lean` via `decodeParams` and `decodeParams?`.
+This logic is implemented in `LeanWorker/JsonRpc/Parse.lean` via `decodeParams` and `decodeParams?`.

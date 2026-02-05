@@ -15,8 +15,13 @@ See `docs/README.md` for the full documentation suite.
 
 ## Repo Layout
 - `LeanWorker/JsonRpc/Structured.lean`: structured params helpers.
-- `LeanWorker/JsonRpc/Types.lean`: core JSON-RPC types + validation.
+- `LeanWorker/JsonRpc/Core.lean`: core JSON-RPC types.
+- `LeanWorker/JsonRpc/Parse.lean`: parsing + validation helpers.
+- `LeanWorker/JsonRpc/Encoding.lean`: encoding helpers.
 - `LeanWorker/Transport/Types.lean`: transport abstraction.
+- `LeanWorker/Transport/Streams.lean`: stdio stream byte transports.
+- `LeanWorker/Transport/Logging.lean`: transport logging helpers.
+- `LeanWorker/Transport/Spawn.lean`: spawn helpers for stdio transports.
 - `LeanWorker/Framing/*`: newline, content-length, HTTP-like framings.
 - `LeanWorker/Async/Loops.lean`: async loops bridging byte + JSON transports.
 - `LeanWorker/Server.lean`: server API + runtime.
@@ -130,7 +135,7 @@ Async.block <| Server.run server () state
 open LeanWorker
 
 def main : IO Unit := do
-  let client ← Async.block <| Client.spawnStdioClient { cmd := "./path/to/server" }
+  let client ← Async.block <| Client.spawnStdioClient ({ cmd := "./path/to/server" } : Transport.SpawnConfig)
   let result ← EIO.toIO' <| EAsync.block <| client.request "ping" none
   IO.println s!"{result}"
 ```
@@ -145,8 +150,8 @@ open LeanWorker.Server
 def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  let log ← Client.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Client.byteTransportFromStreams stdin stdout log
+  let log ← Transport.stderrLogger "SERVER"
+  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.newline
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
@@ -161,8 +166,8 @@ open LeanWorker
 def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  let log ← Client.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Client.byteTransportFromStreams stdin stdout log
+  let log ← Transport.stderrLogger "SERVER"
+  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
@@ -175,7 +180,7 @@ def runServer : IO Unit := do
 open LeanWorker
 
 def main : IO Unit := do
-  let client ← Async.block <| Client.spawnStdioClient { cmd := "./path/to/server" }
+  let client ← Async.block <| Client.spawnStdioClient ({ cmd := "./path/to/server" } : Transport.SpawnConfig)
   let result ← EIO.toIO' <| EAsync.block <| client.request "ping" none
   IO.println s!"{result}"
 ```
@@ -185,8 +190,8 @@ def main : IO Unit := do
 open LeanWorker
 
 def connect (readStream writeStream : IO.FS.Stream) : IO Client.Client := do
-  let log ← Client.stderrLogger "CLIENT"
-  let byteTransport ← Async.block <| Client.byteTransportFromStreams readStream writeStream log
+  let log ← Transport.stderrLogger "CLIENT"
+  let byteTransport ← Async.block <| Transport.byteTransportFromStreams readStream writeStream log
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
   Async.block <| Client.getClient transport
 ```
@@ -196,8 +201,8 @@ def connect (readStream writeStream : IO.FS.Stream) : IO Client.Client := do
 open LeanWorker
 
 def connectHttpLike (readStream writeStream : IO.FS.Stream) : IO Client.Client := do
-  let log ← Client.stderrLogger "CLIENT"
-  let byteTransport ← Async.block <| Client.byteTransportFromStreams readStream writeStream log
+  let log ← Transport.stderrLogger "CLIENT"
+  let byteTransport ← Async.block <| Transport.byteTransportFromStreams readStream writeStream log
   let transport ← Async.block <| Async.framedTransport byteTransport (Framing.httpLike {})
   Async.block <| Client.getClient transport
 ```
@@ -240,7 +245,7 @@ def main : IO Unit := do
 - `Framing.httpLike` / `Framing.defaultHttpLike` in `LeanWorker/Framing/HttpLike.lean`
 
 ## Transport Options
-- `Client.byteTransportFromStreams` in `LeanWorker/Client.lean` for `IO.FS.Stream`.
-- `Client.spawnStdioTransport` in `LeanWorker/Client.lean` for subprocess stdio.
+- `Transport.byteTransportFromStreams` in `LeanWorker/Transport/Streams.lean` for `IO.FS.Stream`.
+- `Transport.spawnStdioTransport` in `LeanWorker/Transport/Spawn.lean` for subprocess stdio (uses `Transport.SpawnConfig`).
 - `Transport.Tcp.connectByteTransport` / `Transport.Tcp.listenByteTransport` in `LeanWorker/Transport/Tcp.lean`.
 - Test-only line-based transport in `LeanWorkerTest/Support.lean`.

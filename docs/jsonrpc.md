@@ -1,6 +1,6 @@
 # JSON-RPC Types and Validation
 
-The core JSON-RPC model is defined in `LeanWorker/JsonRpc/Types.lean`. It enforces strict JSON-RPC 2.0 rules and exposes helpers for parsing and error handling.
+The core JSON-RPC model is defined in `LeanWorker/JsonRpc/Core.lean`, with parsing helpers in `LeanWorker/JsonRpc/Parse.lean` and encoding helpers in `LeanWorker/JsonRpc/Encoding.lean`.
 
 ## Core Types
 
@@ -37,8 +37,8 @@ These helpers use `Error.parseError` and `Error.invalidRequest` with structured 
 
 - `responseResult : RpcId → Json → Response`
 - `responseError : RpcId → Error → Response`
-- `parseErrorResponse : Error → Response`
-- `invalidRequestResponse : Error → Response`
+- `parseErrorResponse : Response`
+- `invalidRequestResponse : Response`
 
 ## Example
 

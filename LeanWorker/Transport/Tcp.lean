@@ -1,6 +1,6 @@
 module
 
-public import LeanWorker.Transport.Types
+public import LeanWorker.Transport.Logging
 public import LeanWorker.Async.Loops
 public import Std.Internal.Async.TCP
 public import Std.Sync.Channel
@@ -15,19 +15,12 @@ open Std.Internal.IO.Async
 open Std.Internal.IO.Async.TCP
 open Std.Net
 
-def logLevelTag : LogLevel → String
-  | .debug => "DEBUG"
-  | .info => "INFO"
-  | .warn => "WARN"
-  | .error => "ERROR"
+abbrev logLevelTag : LogLevel → String := Transport.logLevelTag
 
-def stderrLogger (label : String) : IO (LogLevel → String → IO Unit) := do
-  let stream ← IO.getStderr
-  return fun level message => do
-    stream.putStrLn s!"[{label} {logLevelTag level}] {message}"
-    stream.flush
+abbrev stderrLogger (label : String) : IO (LogLevel → String → IO Unit) :=
+  Transport.stderrLogger label
 
-def silentLogger : LogLevel → String → IO Unit := fun _ _ => pure ()
+abbrev silentLogger : LogLevel → String → IO Unit := Transport.silentLogger
 
 def defaultLogger : IO (LogLevel → String → IO Unit) :=
   stderrLogger "TCP"

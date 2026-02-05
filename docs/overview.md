@@ -31,9 +31,9 @@ Incoming bytes are decoded into JSON values. The server parses JSON-RPC messages
 
 ## Where to Look
 
-- Core JSON-RPC types: `LeanWorker/JsonRpc/Types.lean`
+- Core JSON-RPC types + parsing/encoding: `LeanWorker/JsonRpc/Core.lean`, `LeanWorker/JsonRpc/Parse.lean`, `LeanWorker/JsonRpc/Encoding.lean`
 - Structured params: `LeanWorker/JsonRpc/Structured.lean`
-- Transport and framing: `LeanWorker/Transport/Types.lean`, `LeanWorker/Framing/*`
+- Transport and framing: `LeanWorker/Transport/Types.lean`, `LeanWorker/Transport/Streams.lean`, `LeanWorker/Framing/*`
 - Async loops: `LeanWorker/Async/Loops.lean`
 - Server/client: `LeanWorker/Server.lean`, `LeanWorker/Client.lean`
 - TCP/HTTP utilities: `LeanWorker/Transport/Tcp.lean`, `LeanWorker/Http/*`

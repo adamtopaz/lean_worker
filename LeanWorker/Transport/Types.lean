@@ -26,10 +26,5 @@ structure Transport (Incoming Outgoing : Type) where
 
 abbrev ByteTransport := Transport ByteArray ByteArray
 
-def logMessage (transport : Transport Incoming Outgoing)
-    (level : LogLevel)
-    (message : String) : IO Unit :=
-  transport.log level message
-
 end Transport
 end LeanWorker

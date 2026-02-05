@@ -40,8 +40,8 @@ open LeanWorker
 def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  let log ← Client.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Client.byteTransportFromStreams stdin stdout log
+  let log ← Transport.stderrLogger "SERVER"
+  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
   let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
   let state ← Std.Mutex.new 0
   Async.block <| Server.run server () state

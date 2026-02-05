@@ -1,6 +1,6 @@
 # Transport Abstraction
 
-Transports are defined in `LeanWorker/Transport/Types.lean`. A transport exposes inbox/outbox channels, logging, and shutdown semantics.
+Transports are defined in `LeanWorker/Transport/Types.lean`. A transport exposes inbox/outbox channels, logging, and shutdown semantics. Stream helpers live in `LeanWorker/Transport/Streams.lean`, logging helpers in `LeanWorker/Transport/Logging.lean`, and stdio spawning in `LeanWorker/Transport/Spawn.lean`.
 
 ## Type
 
@@ -31,3 +31,10 @@ let transport ← Async.block <|
 ```
 
 The server and client then operate purely on `Transport (Except Error Json) Json`.
+
+## Implementations
+
+- `Transport.Streams`: build a `ByteTransport` from `IO.FS.Stream` handles.
+- `Transport.Line`: line-based transport used by test utilities.
+- `Transport.Tcp`: TCP transport helpers.
+- `Transport.Spawn`: spawn a subprocess and build a stdio JSON transport.

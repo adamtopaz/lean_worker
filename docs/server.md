@@ -54,7 +54,10 @@ structure AddParams where
 
 instance : FromStructured AddParams where
   fromStructured? params := do
-    let kvs ← JsonRpc.expectObj params
+    let kvs ←
+      match params with
+      | .obj kvs => return kvs
+      | _ => throw "object params expected"
     let deltaJson ← JsonRpc.requireField kvs "delta"
     let delta ← deltaJson.getInt?
     return { delta }

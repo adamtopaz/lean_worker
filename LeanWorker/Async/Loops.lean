@@ -2,7 +2,7 @@ module
 
 public import LeanWorker.Transport.Types
 public import LeanWorker.Framing.Types
-public import LeanWorker.JsonRpc.Types
+public import LeanWorker.JsonRpc.Encoding
 public import Std.Sync.Channel
 public import Std.Internal.Async.Basic
 

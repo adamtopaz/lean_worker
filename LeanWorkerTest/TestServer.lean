@@ -1,8 +1,8 @@
 module
 
 public import LeanWorker
-public import LeanWorker.Client
 public import LeanWorker.Transport.Line
+public import LeanWorker.Transport.Logging
 public import LeanWorkerTest.FullServer
 
 public section
@@ -15,7 +15,7 @@ open Std.Internal.IO.Async
 def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  let log ← LeanWorker.Client.stderrLogger "SERVER"
+  let log ← LeanWorker.Transport.stderrLogger "SERVER"
   let byteTransport ← Async.block <|
     LeanWorker.Transport.lineByteTransportFromStreams stdin stdout log
   let transport ← Async.block <|
