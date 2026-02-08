@@ -1,7 +1,6 @@
 module
 
 public import LeanWorker.Framing.Parse
-public import LeanWorker.JsonRpc.Parse
 
 public section
 
@@ -28,7 +27,7 @@ private def findHeaderTerminator (buffer : ByteArray) : Option Nat :=
 
 private partial def decodeContentLengthAux
     (buffer : ByteArray)
-    (acc : Array Json) : Except Error (Array Json × ByteArray) := do
+    (acc : Array ByteArray) : Except Error (Array ByteArray × ByteArray) := do
   match findHeaderTerminator buffer with
   | none => return (acc, buffer)
   | some headerEnd => do
@@ -44,27 +43,15 @@ private partial def decodeContentLengthAux
       return (acc, buffer)
     let bodyBytes := buffer.extract bodyStart (bodyStart + contentLength)
     let rest := buffer.extract (bodyStart + contentLength) buffer.size
-    let bodyText ←
-      match String.fromUTF8? bodyBytes with
-      | some text => Except.ok text
-      | none => Except.error (framingError "invalid UTF-8 in body")
-    let json ← parseJson bodyText
-    decodeContentLengthAux rest (acc.push json)
+    decodeContentLengthAux rest (acc.push bodyBytes)
 
-def decodeContentLength (buffer : ByteArray) : Except Error (Array Json × ByteArray) :=
+def decodeContentLengthBytes
+    (buffer : ByteArray) : Except Error (Array ByteArray × ByteArray) :=
   decodeContentLengthAux buffer #[]
 
-def encodeContentLength (json : Json) : ByteArray :=
-  let body := Json.compress json
-  let bodyBytes := body.toUTF8
-  let header := s!"Content-Length: {bodyBytes.size}\r\n\r\n"
-  header.toUTF8 ++ bodyBytes
-
-def contentLength : Framing :=
-  {
-    encode := encodeContentLength,
-    decode := decodeContentLength
-  }
+def encodeContentLengthBytes (payload : ByteArray) : ByteArray :=
+  let header := s!"Content-Length: {payload.size}\r\n\r\n"
+  header.toUTF8 ++ payload
 
 end Framing
 end LeanWorker

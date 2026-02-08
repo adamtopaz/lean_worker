@@ -2,10 +2,7 @@ module
 
 public import LeanWorker
 public import LeanWorker.Transport.Tcp
-public import LeanWorker.Transport.Line
-public import LeanWorker.Framing.Newline
-public import LeanWorker.Framing.ContentLength
-public import LeanWorker.Framing.HttpLike
+public import LeanWorker.Transport.Streams
 public import LeanWorkerTest.FullServer
 public import Std.Internal.Async.Basic
 
@@ -178,11 +175,11 @@ def parseArgsAux (cfg : CliConfig) : List String → Except String CliConfig
 def parseArgs (args : List String) : Except String CliConfig :=
   parseArgsAux {} args
 
-def framingFromMode : FramingMode → LeanWorker.Framing.Framing
-  | .newline => LeanWorker.Framing.newline
-  | .contentLength => LeanWorker.Framing.contentLength
+def frameSpecFromMode : FramingMode → Transport.FrameSpec
+  | .newline => .newline
+  | .contentLength => .contentLength
   | .httpLike =>
-    LeanWorker.Framing.httpLike
+    .httpLike
       {
         startLine := "HTTP/1.1 200 OK",
         headers := [("Content-Type", "application/json")]
@@ -207,17 +204,9 @@ def runServer
 def runStdio (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit) : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  let byteTransport ← Async.block <|
-    match cfg.framing with
-    | .newline =>
-      LeanWorker.Transport.lineByteTransportFromStreams stdin stdout log
-    | .contentLength =>
-      LeanWorker.Transport.byteTransportFromStreams stdin stdout log
-    | .httpLike =>
-      LeanWorker.Transport.byteTransportFromStreams stdin stdout log
-  let framing := framingFromMode cfg.framing
+  let frameSpec := frameSpecFromMode cfg.framing
   let transport ← Async.block <|
-    LeanWorker.Async.framedTransport byteTransport framing
+    LeanWorker.Transport.jsonTransportFromStreams stdin stdout frameSpec log
   let state ← Std.Mutex.new FullServer.defaultState
   Async.block <| runServer cfg transport state
 
@@ -232,13 +221,14 @@ def runTcp (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit) :
       pure <| Std.Net.SocketAddress.v4 { addr := host, port := cfg.port }
     | .error message =>
       throw <| IO.userError message
-  let framing := framingFromMode cfg.framing
+  let frameSpec := frameSpecFromMode cfg.framing
   let sharedState ← Std.Mutex.new FullServer.defaultState
-  let handle : Transport.ByteTransport → Async Unit := fun byteTransport => do
-    let transport ← LeanWorker.Async.framedTransport byteTransport framing
-    runServer cfg transport sharedState
   let listener ← Async.block <|
-    Transport.Tcp.listenByteTransport addr handle (log := log)
+    Transport.Tcp.listenJsonTransport
+      addr
+      (fun transport => runServer cfg transport sharedState)
+      frameSpec
+      (log := log)
   log .info s!"listening on {cfg.host}:{cfg.port}"
   try
     waitLoop

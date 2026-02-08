@@ -1,6 +1,7 @@
 module
 
 public import LeanWorker
+public import LeanWorker.Transport.Streams
 public import LeanWorkerTest.Support
 public import LeanWorkerTest.Tests.Support
 
@@ -31,10 +32,8 @@ def runStdioClientServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   let log ← Transport.stderrLogger "SERVER"
-  let byteTransport ← Async.block <|
-    Transport.lineByteTransportFromStreams stdin stdout log
   let transport ← Async.block <|
-    LeanWorker.Async.framedTransport byteTransport Framing.newline
+    Transport.jsonTransportFromStreams stdin stdout .newline log
   let server : Server Unit Unit :=
     {
       handlers := handlers,

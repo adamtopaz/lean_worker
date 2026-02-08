@@ -2,7 +2,7 @@ module
 
 public import LeanWorker
 public import LeanWorker.Client
-public import LeanWorker.Transport.Line
+public import LeanWorker.Transport.Streams
 public import LeanWorker.Transport.Logging
 public import Std.Internal.Async.Basic
 
@@ -61,10 +61,8 @@ structure ManagedClient where
 def spawnManagedClient : IO ManagedClient := do
   let raw ← spawnRawClient
   let log ← LeanWorker.Transport.stderrLogger "TESTCLIENT"
-  let byteTransport ← Async.block <|
-    LeanWorker.Transport.lineByteTransportFromStreams raw.stdout raw.stdin log
   let transport ← Async.block <|
-    LeanWorker.Async.framedTransport byteTransport Framing.newline
+    LeanWorker.Transport.jsonTransportFromStreams raw.stdout raw.stdin .newline log
   let client ← Async.block <| LeanWorker.Client.getClient transport
   return { client, child := raw.child }
 

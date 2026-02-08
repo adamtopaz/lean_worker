@@ -24,7 +24,5 @@ structure Transport (Incoming Outgoing : Type) where
   log : LogLevel → String → IO Unit
   shutdown : Async Unit
 
-abbrev ByteTransport := Transport ByteArray ByteArray
-
 end Transport
 end LeanWorker

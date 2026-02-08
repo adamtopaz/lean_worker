@@ -1,7 +1,7 @@
 module
 
 public import LeanWorker.Transport.Types
-public import LeanWorker.Framing.Types
+public import LeanWorker.Transport.Codec
 public import LeanWorker.JsonRpc.Encoding
 public import Std.Sync.Channel
 public import Std.Internal.Async.Basic
@@ -14,7 +14,6 @@ namespace Async
 open Lean
 open JsonRpc
 open Transport
-open Framing
 open Std.Internal.IO.Async
 
 def errorToString (err : Error) : String :=
@@ -51,60 +50,61 @@ def closeOrLog
   | .error err =>
     logError log s!"{label} close failed: {err}"
 
-partial def readLoop
-    (byteTransport : ByteTransport)
-    (framing : Framing)
-    (inbox : Std.CloseableChannel (Except Error Json)) : Async Unit := do
-  let rec loop (buffer : ByteArray) : Async Unit := do
-    match ← await <| ← byteTransport.inbox.recv with
-    | none =>
-      closeOrLog byteTransport.log "json inbox" inbox
-    | some chunk =>
-      let buffer := buffer ++ chunk
-      match framing.decode buffer with
-      | .ok (messages, rest) =>
-        let mut continueLoop := true
-        for msg in messages do
+partial def framedCodecTransport
+    (rawTransport : Transport.Transport ByteArray ByteArray)
+    (encodeFrame : ByteArray → ByteArray)
+    (decodeFrame : ByteArray → Except Error (Array ByteArray × ByteArray))
+    (codec : Codec Incoming Outgoing) :
+    Async (Transport (Except Error Incoming) Outgoing) := do
+  let inbox : Std.CloseableChannel (Except Error Incoming) ← Std.CloseableChannel.new
+  let outbox : Std.CloseableChannel Outgoing ← Std.CloseableChannel.new
+  let readerTask : AsyncTask Unit ← async do
+    let rec readLoop (buffer : ByteArray) : Async Unit := do
+      match ← await <| ← rawTransport.inbox.recv with
+      | none =>
+        closeOrLog rawTransport.log "typed inbox" inbox
+      | some chunk =>
+        let buffer := buffer ++ chunk
+        match decodeFrame buffer with
+        | .ok (payloads, rest) =>
+          let mut continueLoop := true
+          for payload in payloads do
+            if continueLoop then
+              match codec.decode payload with
+              | .ok message =>
+                let sent ← sendOrLog rawTransport.log "typed inbox" inbox (.ok message)
+                if !sent then
+                  continueLoop := false
+              | .error err =>
+                logError rawTransport.log s!"codec decode error: {errorToString err}"
+                let sent ← sendOrLog rawTransport.log "typed inbox" inbox (.error err)
+                if !sent then
+                  continueLoop := false
           if continueLoop then
-            let sent ← sendOrLog byteTransport.log "json inbox" inbox (.ok msg)
-            if !sent then
-              continueLoop := false
-        if continueLoop then
-          loop rest
-      | .error err =>
-        logError byteTransport.log s!"framing decode error: {errorToString err}"
-        let sent ← sendOrLog byteTransport.log "json inbox" inbox (.error err)
+            readLoop rest
+        | .error err =>
+          logError rawTransport.log s!"framing decode error: {errorToString err}"
+          let sent ← sendOrLog rawTransport.log "typed inbox" inbox (.error err)
+          if sent then
+            readLoop ByteArray.empty
+    readLoop ByteArray.empty
+  let writerTask : AsyncTask Unit ← async do
+    let rec writeLoop : Async Unit := do
+      match ← await <| ← outbox.recv with
+      | none =>
+        closeOrLog rawTransport.log "byte outbox" rawTransport.outbox
+      | some message =>
+        let payload := codec.encode message
+        let bytes := encodeFrame payload
+        let sent ← sendOrLog rawTransport.log "byte outbox" rawTransport.outbox bytes
         if sent then
-          loop ByteArray.empty
-  loop ByteArray.empty
-
-partial def writeLoop
-    (byteTransport : ByteTransport)
-    (framing : Framing)
-    (outbox : Std.CloseableChannel Json) : Async Unit := do
-  let rec loop : Async Unit := do
-    match ← await <| ← outbox.recv with
-    | none =>
-      closeOrLog byteTransport.log "byte outbox" byteTransport.outbox
-    | some msg =>
-      let bytes := framing.encode msg
-      let sent ← sendOrLog byteTransport.log "byte outbox" byteTransport.outbox bytes
-      if sent then
-        loop
-  loop
-
-def framedTransport
-    (byteTransport : ByteTransport)
-    (framing : Framing) : Async (Transport (Except Error Json) Json) := do
-  let inbox : Std.CloseableChannel (Except Error Json) ← Std.CloseableChannel.new
-  let outbox : Std.CloseableChannel Json ← Std.CloseableChannel.new
-  let readerTask : AsyncTask Unit ← async <| readLoop byteTransport framing inbox
-  let writerTask : AsyncTask Unit ← async <| writeLoop byteTransport framing outbox
+          writeLoop
+    writeLoop
   let shutdown : Async Unit := do
-    byteTransport.shutdown
+    rawTransport.shutdown
     await readerTask
     await writerTask
-  return { inbox, outbox, log := byteTransport.log, shutdown }
+  return { inbox, outbox, log := rawTransport.log, shutdown }
 
 end Async
 end LeanWorker

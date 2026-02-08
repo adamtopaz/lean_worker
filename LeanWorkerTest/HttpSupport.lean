@@ -4,6 +4,7 @@ public import LeanWorker
 public import LeanWorkerTest.HttpServer
 public import LeanWorkerTest.HttpClient
 public import Std.Internal.Async.Basic
+public import Std.Internal.Async.TCP
 
 public section
 
@@ -13,6 +14,10 @@ open Lean
 open LeanWorker
 open LeanWorker.JsonRpc
 open Std.Internal.IO.Async
+open Std.Internal.IO.Async.TCP
+
+structure RawHttpClient where
+  client : TCP.Socket.Client
 
 def localhost (port : UInt16) : Std.Net.SocketAddress :=
   let addr := Std.Net.IPv4Addr.ofParts 127 0 0 1
@@ -46,9 +51,25 @@ def withHttpClient (port : UInt16) (action : Client.Client → IO α) : IO α :=
   let client ← connect (localhost port)
   action client
 
-def withRawHttp (port : UInt16) (action : Transport.ByteTransport → IO α) : IO α := do
-  let transport ← connectRaw (localhost port)
-  action transport
+def connectRawHttp (addr : Std.Net.SocketAddress) : IO RawHttpClient := do
+  let client ← Async.block <| do
+    let client ← TCP.Socket.Client.mk
+    TCP.Socket.Client.connect client addr
+    return client
+  return { client }
+
+def closeRawHttp (raw : RawHttpClient) : IO Unit := do
+  try
+    Async.block <| TCP.Socket.Client.shutdown raw.client
+  catch _ =>
+    pure ()
+
+def withRawHttp (port : UInt16) (action : RawHttpClient → IO α) : IO α := do
+  let raw ← connectRawHttp (localhost port)
+  try
+    action raw
+  finally
+    closeRawHttp raw
 
 def httpRequest (body : String) (headers : List (String × String) := []) : String :=
   let bodyBytes := body.toUTF8
@@ -57,20 +78,22 @@ def httpRequest (body : String) (headers : List (String × String) := []) : Stri
   let headerText := String.intercalate "\r\n" ("POST / HTTP/1.1" :: headerLines)
   headerText ++ "\r\n\r\n" ++ body
 
-def sendRawHttp (transport : Transport.ByteTransport) (request : String) : Async Unit := do
+def sendRawHttp (transport : RawHttpClient) (request : String) : Async Unit := do
   let bytes := request.toUTF8
-  let _ ← LeanWorker.Async.sendOrLog transport.log "http raw send" transport.outbox bytes
-  return
+  TCP.Socket.Client.send transport.client bytes
 
 partial def recvHttpJson
-    (transport : Transport.ByteTransport)
+    (transport : RawHttpClient)
     (buffer : ByteArray := ByteArray.empty) : Async (Except JsonRpc.Error Json) := do
-  match Framing.httpLike {} |>.decode buffer with
-  | .ok (items, rest) =>
-    match items.toList with
-    | first :: _ => return .ok first
+  match Framing.decodeHttpLikeBytes buffer with
+  | .ok (payloads, rest) =>
+    match payloads.toList with
+    | first :: _ =>
+      match JsonRpc.jsonCodec.decode first with
+      | .ok json => return .ok json
+      | .error err => return .error err
     | [] =>
-      match ← await <| ← transport.inbox.recv with
+      match ← TCP.Socket.Client.recv? transport.client Transport.Tcp.defaultReadSize with
       | none => return .error JsonRpc.Error.parseError
       | some chunk => recvHttpJson transport (rest ++ chunk)
   | .error err => return .error err

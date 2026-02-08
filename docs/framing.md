@@ -1,48 +1,47 @@
 # Framing
 
-Framing converts raw bytes to JSON values and back. It is defined in `LeanWorker/Framing/Types.lean` and implemented in:
+Framing is byte-oriented. It does not parse JSON-RPC messages.
 
-- `LeanWorker/Framing/Newline.lean`
-- `LeanWorker/Framing/ContentLength.lean`
-- `LeanWorker/Framing/HttpLike.lean`
+- Header parsing helpers: `LeanWorker/Framing/Parse.lean`
+- Newline framing: `LeanWorker/Framing/Newline.lean`
+- Content-Length framing: `LeanWorker/Framing/ContentLength.lean`
+- HTTP-like framing: `LeanWorker/Framing/HttpLike.lean`
 
-## Framing Type
+Each decoder returns complete payloads plus a remainder buffer:
 
 ```lean
-structure Framing where
-  encode : Json → ByteArray
-  decode : ByteArray → Except Error (Array Json × ByteArray)
+ByteArray → Except JsonRpc.Error (Array ByteArray × ByteArray)
 ```
 
-`decode` returns a list of JSON messages and the leftover buffer (for partial frames).
+## Newline
 
-## Newline Framing
+- `Framing.encodeNewlineBytes : ByteArray → ByteArray`
+- `Framing.decodeNewlineBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
 
-- Encode: `Json.compress` + `"\n"`.
-- Decode: split on newline; each line is parsed as JSON.
+Splits on newline and keeps partial trailing input as remainder.
 
-## Content-Length Framing
+## Content-Length
 
-- Encode: `Content-Length: <len>\r\n\r\n` + JSON body.
-- Decode: parse headers, read `Content-Length`, parse body.
+- `Framing.encodeContentLengthBytes : ByteArray → ByteArray`
+- `Framing.decodeContentLengthBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
 
-## HTTP-like Framing
+Uses `Content-Length: <n>\r\n\r\n<body>` framing.
 
-- Adds a start line and HTTP-style headers.
-- Still uses `Content-Length` and a JSON body.
-- Useful for `curl` and basic HTTP clients, but it is not a full HTTP server.
+## HTTP-like
 
-## Example
+- `Framing.HttpLikeConfig`
+- `Framing.encodeHttpLikeBytes : HttpLikeConfig → ByteArray → ByteArray`
+- `Framing.decodeHttpLikeBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
+
+Adds start line + headers and still uses `Content-Length` for body boundaries.
+
+## How It Is Used
+
+You usually choose framing through `Transport.FrameSpec` when constructing a transport:
 
 ```lean
 open LeanWorker
 
-def runServer : IO Unit := do
-  let stdin ← IO.getStdin
-  let stdout ← IO.getStdout
-  let log ← Transport.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
-  let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
-  let state ← Std.Mutex.new 0
-  Async.block <| Server.run server () state
+let transport ← Async.block <|
+  Transport.jsonTransportFromStreams stdin stdout (.httpLike {}) log
 ```

@@ -1,10 +1,7 @@
 module
 
-public import LeanWorker.Transport.Line
+public import LeanWorker.Transport.Streams
 public import LeanWorker.Transport.Logging
-public import LeanWorker.Async.Loops
-public import LeanWorker.Framing.Newline
-public import LeanWorker.JsonRpc.Core
 
 public section
 
@@ -35,10 +32,12 @@ abbrev spawnArgs (config : SpawnConfig) : IO.Process.SpawnArgs :=
     stderr := config.stderr
   }
 
-def spawnStdioTransport
+def spawnStdioTransportWithCodec
     (config : SpawnConfig)
+    (frameSpec : FrameSpec)
+    (codec : Codec Incoming Outgoing)
     (log : LogLevel → String → IO Unit := silentLogger) :
-    Async (Transport (Except Error Json) Json) := do
+    Async (Transport (Except JsonRpc.Error Incoming) Outgoing) := do
   let child ← IO.Process.spawn (spawnArgs config)
   let (stdinHandle, child) ← child.takeStdin
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
@@ -46,9 +45,20 @@ def spawnStdioTransport
   let shutdownAction : Async Unit := do
     let _ ← child.wait
     return
-  let byteTransport ←
-    lineByteTransportFromStreams stdoutStream stdinStream log shutdownAction
-  LeanWorker.Async.framedTransport byteTransport Framing.newline
+  Transport.transportFromStreams
+    stdoutStream
+    stdinStream
+    frameSpec
+    codec
+    log
+    shutdownAction
+
+def spawnStdioTransport
+    (config : SpawnConfig)
+    (frameSpec : FrameSpec := .newline)
+    (log : LogLevel → String → IO Unit := silentLogger) :
+    Async (Transport (Except JsonRpc.Error Lean.Json) Lean.Json) :=
+  spawnStdioTransportWithCodec config frameSpec JsonRpc.jsonCodec (log := log)
 
 end Transport
 end LeanWorker

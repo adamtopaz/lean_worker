@@ -1,8 +1,6 @@
 # Transport Abstraction
 
-Transports are defined in `LeanWorker/Transport/Types.lean`. A transport exposes inbox/outbox channels, logging, and shutdown semantics. Stream helpers live in `LeanWorker/Transport/Streams.lean`, logging helpers in `LeanWorker/Transport/Logging.lean`, and stdio spawning in `LeanWorker/Transport/Spawn.lean`.
-
-## Type
+Transports are defined in `LeanWorker/Transport/Types.lean`.
 
 ```lean
 structure Transport (Incoming Outgoing : Type) where
@@ -12,29 +10,56 @@ structure Transport (Incoming Outgoing : Type) where
   shutdown : Async Unit
 ```
 
-`ByteTransport` is an alias for `Transport ByteArray ByteArray`.
+## Core Model
 
-## Key Ideas
+- The public API is typed transports only (no public byte transport alias).
+- Framing is selected via `Transport.FrameSpec`.
+- Payload encoding/decoding is handled by `Transport.Codec`.
+- Protocol modules (`Streams`, `Tcp`, `Spawn`) construct typed transports directly.
 
-- `inbox` is the stream of incoming messages.
-- `outbox` is used to send outgoing messages.
-- `log` is for operational logging; never write JSON-RPC payloads to stderr.
-- `shutdown` should close loops and underlying resources.
+## Codec
 
-## Usage Patterns
-
-Transports are wired to framings by the async loops:
+`LeanWorker/Transport/Codec.lean`:
 
 ```lean
-let transport ← Async.block <|
-  LeanWorker.Async.framedTransport byteTransport Framing.newline
+structure Codec (Incoming Outgoing : Type) where
+  decode : ByteArray → Except JsonRpc.Error Incoming
+  encode : Outgoing → ByteArray
 ```
 
-The server and client then operate purely on `Transport (Except Error Json) Json`.
+JSON codec: `LeanWorker/JsonRpc/Codec.lean` (`JsonRpc.jsonCodec`).
 
-## Implementations
+## Framing Selection
 
-- `Transport.Streams`: build a `ByteTransport` from `IO.FS.Stream` handles.
-- `Transport.Line`: line-based transport used by test utilities.
-- `Transport.Tcp`: TCP transport helpers.
-- `Transport.Spawn`: spawn a subprocess and build a stdio JSON transport.
+`LeanWorker/Transport/Streams.lean`:
+
+```lean
+inductive FrameSpec where
+  | newline
+  | contentLength
+  | httpLike (config : Framing.HttpLikeConfig := {})
+```
+
+## Main Constructors
+
+- `Transport.transportFromStreams`: streams + frame spec + codec -> typed transport.
+- `Transport.jsonTransportFromStreams`: streams + frame spec -> JSON transport.
+- `Transport.spawnStdioTransportWithCodec`: spawn stdio child with custom codec.
+- `Transport.spawnStdioTransport`: spawn stdio child with JSON codec.
+- `Transport.Tcp.connectTransport` / `Transport.Tcp.listenTransport`: typed TCP + codec.
+- `Transport.Tcp.connectJsonTransport` / `Transport.Tcp.listenJsonTransport`: typed TCP JSON helpers.
+
+## Example
+
+```lean
+open LeanWorker
+
+def connectJsonOverStreams (readStream writeStream : IO.FS.Stream) : IO (Transport.Transport (Except JsonRpc.Error Lean.Json) Lean.Json) := do
+  let log ← Transport.stderrLogger "CLIENT"
+  Async.block <|
+    Transport.jsonTransportFromStreams
+      readStream
+      writeStream
+      .contentLength
+      log
+```

@@ -6,7 +6,7 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 
 ## Project Overview
 - Language: Lean 4 (see lean-toolchain)
-- Build system: Lake (lakefile.toml, lake-manifest.json)
+- Build system: Lake (`lakefile.lean`, `lake-manifest.json`)
 - Libraries: LeanWorker, LeanWorkerTest
 - Executables: lean_worker (Main.lean), test_server (LeanWorkerTest.TestServer),
   test_client (LeanWorkerTest.TestClient), run_tests (LeanWorkerTest.Main),
@@ -51,7 +51,7 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 ### Single Test / Single File
 - Fast check a single file: `lake env lean LeanWorkerTest/TestServer.lean`
 - Fast check a library module: `lake build LeanWorkerTest` (or `LeanWorker`)
-- If you add a new test module, update `lakefile.toml` globs if needed.
+- If you add a new test module, update `lakefile.lean` targets/imports if needed.
 
 ### CI
 - GitHub Actions uses `leanprover/lean-action` (defaults to `lake build`).
@@ -71,7 +71,7 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 - Use `lake env <cmd>` when running Lean tools outside Lake.
 
 ## Dependency Management
-- Add new deps in `lakefile.toml` and run `lake update`.
+- Add new deps in `lakefile.lean` and run `lake update`.
 - Commit the updated `lake-manifest.json` when deps change.
 - Do not edit `lake-manifest.json` by hand.
 - Keep `lean-toolchain` pinned unless intentionally upgrading Lean.

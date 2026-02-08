@@ -1,7 +1,6 @@
 module
 
-public import LeanWorker.Framing.Types
-public import LeanWorker.JsonRpc.Parse
+public import LeanWorker.Framing.Parse
 
 public section
 
@@ -21,7 +20,7 @@ private partial def decodeNewlineAux
     (buffer : ByteArray)
     (index : Nat)
     (start : Nat)
-    (acc : Array Json) : Except Error (Array Json × ByteArray) := do
+    (acc : Array ByteArray) : Except Error (Array ByteArray × ByteArray) := do
   if index < buffer.size then
     if buffer.get! index == (10 : UInt8) then
       let rawLine := buffer.extract start index
@@ -29,25 +28,18 @@ private partial def decodeNewlineAux
       if line.size == 0 then
         decodeNewlineAux buffer (index + 1) (index + 1) acc
       else
-        match String.fromUTF8? line with
-        | none => throw (framingError "invalid UTF-8 in newline frame")
-        | some text =>
-          let json ← parseJson text
-          decodeNewlineAux buffer (index + 1) (index + 1) (acc.push json)
+        decodeNewlineAux buffer (index + 1) (index + 1) (acc.push line)
     else
       decodeNewlineAux buffer (index + 1) start acc
   else
     let rest := buffer.extract start buffer.size
     return (acc, rest)
 
-def decodeNewline (buffer : ByteArray) : Except Error (Array Json × ByteArray) :=
+def decodeNewlineBytes (buffer : ByteArray) : Except Error (Array ByteArray × ByteArray) :=
   decodeNewlineAux buffer 0 0 #[]
 
-def newline : Framing :=
-  {
-    encode := fun json => (Json.compress json ++ "\n").toUTF8,
-    decode := decodeNewline
-  }
+def encodeNewlineBytes (payload : ByteArray) : ByteArray :=
+  payload ++ "\n".toUTF8
 
 end Framing
 end LeanWorker

@@ -1,31 +1,31 @@
 # Async Loops
 
-Async loop utilities are defined in `LeanWorker/Async/Loops.lean`. They connect byte-level transports to JSON-level transports using a framing.
+Async transport loop utilities live in `LeanWorker/Async/Loops.lean`.
 
-## readLoop
-
-- Buffers incoming bytes.
-- Uses `Framing.decode` to parse JSON values.
-- For decode errors, logs the error and resets the buffer.
-- Closes JSON inbox when byte inbox closes.
-
-## writeLoop
-
-- Encodes outgoing JSON using `Framing.encode`.
-- Writes to the byte outbox.
-- Closes the byte outbox when the JSON outbox closes.
-
-## framedTransport
+The main bridge is:
 
 ```lean
-def framedTransport
-    (byteTransport : ByteTransport)
-    (framing : Framing) : Async (Transport (Except Error Json) Json)
+partial def framedCodecTransport
+    (rawTransport : Transport.Transport ByteArray ByteArray)
+    (encodeFrame : ByteArray → ByteArray)
+    (decodeFrame : ByteArray → Except JsonRpc.Error (Array ByteArray × ByteArray))
+    (codec : Transport.Codec Incoming Outgoing) :
+    Async (Transport (Except JsonRpc.Error Incoming) Outgoing)
 ```
 
-Creates a JSON transport with fresh channels and spawns reader/writer tasks. The returned `shutdown` waits for those tasks and the underlying byte transport.
+## Behavior
+
+- Reader loop buffers incoming bytes from the raw transport.
+- It runs framing decode to recover payload byte arrays.
+- It runs codec decode to recover typed incoming messages.
+- Framing/codec decode failures are forwarded as `.error` on typed inbox.
+- Writer loop codec-encodes outgoing values and applies framing encode before send.
+- Shutdown waits for both loop tasks and the underlying raw transport shutdown.
 
 ## Logging Helpers
 
-- `sendOrLog` and `closeOrLog` log channel errors instead of crashing.
-- `logError` and `logAsync` write via the transport logger (not stdout).
+- `sendOrLog`: send to channel, log on channel errors.
+- `closeOrLog`: close channel, log on channel errors.
+- `logError` / `logAsync`: route operational logs through transport logger.
+
+In normal usage you do not call this directly; `Transport.Streams`, `Transport.Tcp`, and `Transport.Spawn` use it internally.

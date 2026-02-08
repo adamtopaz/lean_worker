@@ -2,7 +2,6 @@ module
 
 public import LeanWorker.Http.Types
 public import LeanWorker.Transport.Tcp
-public import LeanWorker.Async.Loops
 
 public section
 
@@ -17,12 +16,11 @@ def serve
     (config : ServerConfig)
     (handle : Transport.Transport (Except Error Lean.Json) Lean.Json → Async Unit) :
     Async Transport.Tcp.Listener := do
-  Transport.Tcp.listenByteTransport config.addr
+  Transport.Tcp.listenJsonTransport config.addr
+    handle
+    (.httpLike config.http)
     (backlog := config.backlog)
     (log := config.log)
-    (handle := fun byteTransport => do
-      let transport ← Async.framedTransport byteTransport (Framing.httpLike config.http)
-      handle transport)
 
 end Http
 end LeanWorker

@@ -18,12 +18,14 @@ See `docs/README.md` for the full documentation suite.
 - `LeanWorker/JsonRpc/Core.lean`: core JSON-RPC types.
 - `LeanWorker/JsonRpc/Parse.lean`: parsing + validation helpers.
 - `LeanWorker/JsonRpc/Encoding.lean`: encoding helpers.
+- `LeanWorker/JsonRpc/Codec.lean`: JSON byte codec.
 - `LeanWorker/Transport/Types.lean`: transport abstraction.
-- `LeanWorker/Transport/Streams.lean`: stdio stream byte transports.
+- `LeanWorker/Transport/Codec.lean`: transport codec abstraction.
+- `LeanWorker/Transport/Streams.lean`: stream transport constructors + frame selection.
 - `LeanWorker/Transport/Logging.lean`: transport logging helpers.
 - `LeanWorker/Transport/Spawn.lean`: spawn helpers for stdio transports.
-- `LeanWorker/Framing/*`: newline, content-length, HTTP-like framings.
-- `LeanWorker/Async/Loops.lean`: async loops bridging byte + JSON transports.
+- `LeanWorker/Framing/*`: byte framing helpers (newline, content-length, HTTP-like).
+- `LeanWorker/Async/Loops.lean`: async loop bridge for framing + codec composition.
 - `LeanWorker/Server.lean`: server API + runtime.
 - `LeanWorker/Client.lean`: client API + runtime.
 - `LeanWorkerTest/*`: test server, client helpers, and full test suite.
@@ -46,7 +48,7 @@ lake build LeanWorkerTest
 lake exe run_tests
 ```
 
-Note: the parse-error test logs a framing decode error to stderr (expected).
+Note: the parse-error test logs a codec decode error to stderr (expected).
 
 ## Integration Tests
 ```bash
@@ -57,7 +59,7 @@ Requirements: `python` or `python3` for stdio/TCP scripts, and `curl` for the HT
 The HTTP-like invalid JSON case logs a parse-error line to stderr (expected).
 
 ## Full Test Server CLI
-Build target: `full_server` (see `lakefile.toml`).
+Build target: `full_server` (see `lakefile.lean`).
 
 Example (stdio + newline):
 ```bash
@@ -151,8 +153,8 @@ def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   let log ← Transport.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
-  let transport ← Async.block <| Async.framedTransport byteTransport Framing.newline
+  let transport ← Async.block <|
+    Transport.jsonTransportFromStreams stdin stdout .newline log
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
   let state ← Std.Mutex.new 0
@@ -167,8 +169,8 @@ def runServer : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   let log ← Transport.stderrLogger "SERVER"
-  let byteTransport ← Async.block <| Transport.byteTransportFromStreams stdin stdout log
-  let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
+  let transport ← Async.block <|
+    Transport.jsonTransportFromStreams stdin stdout .contentLength log
   let server : Server Unit Nat :=
     { handlers := handlers, notifications := notifications, transport := transport }
   let state ← Std.Mutex.new 0
@@ -191,8 +193,8 @@ open LeanWorker
 
 def connect (readStream writeStream : IO.FS.Stream) : IO Client.Client := do
   let log ← Transport.stderrLogger "CLIENT"
-  let byteTransport ← Async.block <| Transport.byteTransportFromStreams readStream writeStream log
-  let transport ← Async.block <| Async.framedTransport byteTransport Framing.contentLength
+  let transport ← Async.block <|
+    Transport.jsonTransportFromStreams readStream writeStream .contentLength log
   Async.block <| Client.getClient transport
 ```
 
@@ -202,8 +204,8 @@ open LeanWorker
 
 def connectHttpLike (readStream writeStream : IO.FS.Stream) : IO Client.Client := do
   let log ← Transport.stderrLogger "CLIENT"
-  let byteTransport ← Async.block <| Transport.byteTransportFromStreams readStream writeStream log
-  let transport ← Async.block <| Async.framedTransport byteTransport (Framing.httpLike {})
+  let transport ← Async.block <|
+    Transport.jsonTransportFromStreams readStream writeStream (.httpLike {}) log
   Async.block <| Client.getClient transport
 ```
 
@@ -240,12 +242,16 @@ def main : IO Unit := do
 ```
 
 ## Framing Options
-- `Framing.newline` in `LeanWorker/Framing/Newline.lean`
-- `Framing.contentLength` in `LeanWorker/Framing/ContentLength.lean`
-- `Framing.httpLike` / `Framing.defaultHttpLike` in `LeanWorker/Framing/HttpLike.lean`
+- `Transport.FrameSpec.newline`
+- `Transport.FrameSpec.contentLength`
+- `Transport.FrameSpec.httpLike <config>`
+- Low-level byte framing helpers:
+  - `Framing.encodeNewlineBytes` / `Framing.decodeNewlineBytes`
+  - `Framing.encodeContentLengthBytes` / `Framing.decodeContentLengthBytes`
+  - `Framing.encodeHttpLikeBytes` / `Framing.decodeHttpLikeBytes`
 
 ## Transport Options
-- `Transport.byteTransportFromStreams` in `LeanWorker/Transport/Streams.lean` for `IO.FS.Stream`.
-- `Transport.spawnStdioTransport` in `LeanWorker/Transport/Spawn.lean` for subprocess stdio (uses `Transport.SpawnConfig`).
-- `Transport.Tcp.connectByteTransport` / `Transport.Tcp.listenByteTransport` in `LeanWorker/Transport/Tcp.lean`.
-- Test-only line-based transport in `LeanWorkerTest/Support.lean`.
+- `Transport.transportFromStreams` / `Transport.jsonTransportFromStreams` in `LeanWorker/Transport/Streams.lean`.
+- `Transport.spawnStdioTransportWithCodec` / `Transport.spawnStdioTransport` in `LeanWorker/Transport/Spawn.lean`.
+- `Transport.Tcp.connectTransport` / `Transport.Tcp.listenTransport` (generic codec).
+- `Transport.Tcp.connectJsonTransport` / `Transport.Tcp.listenJsonTransport` (JSON helpers).

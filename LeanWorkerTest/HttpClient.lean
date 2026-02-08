@@ -15,7 +15,4 @@ def connect (addr : Std.Net.SocketAddress) : IO Client.Client := do
   let config : Http.ClientConfig := { addr := addr }
   Async.block <| Http.client config
 
-def connectRaw (addr : Std.Net.SocketAddress) : IO Transport.ByteTransport :=
-  Async.block <| Transport.Tcp.connectByteTransport addr
-
 end LeanWorkerTest

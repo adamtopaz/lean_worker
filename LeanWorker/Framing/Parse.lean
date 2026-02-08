@@ -1,6 +1,6 @@
 module
 
-public import LeanWorker.Framing.Types
+public import LeanWorker.JsonRpc.Core
 
 public section
 
@@ -9,6 +9,9 @@ namespace Framing
 
 open Lean
 open JsonRpc
+
+def framingError (message : String) : Error :=
+  Error.withData Error.parseError (Json.str message)
 
 def parseHeaderLine (line : String) : Except Error (String × String) :=
   let parts := line.splitOn ":"

@@ -1,7 +1,6 @@
 module
 
 public import LeanWorker.Framing.Parse
-public import LeanWorker.JsonRpc.Parse
 
 public section
 
@@ -33,7 +32,7 @@ private def findHeaderTerminator (buffer : ByteArray) : Option Nat :=
 
 private partial def decodeHttpLikeAux
     (buffer : ByteArray)
-    (acc : Array Json) : Except Error (Array Json × ByteArray) := do
+    (acc : Array ByteArray) : Except Error (Array ByteArray × ByteArray) := do
   match findHeaderTerminator buffer with
   | none => return (acc, buffer)
   | some headerEnd => do
@@ -57,33 +56,18 @@ private partial def decodeHttpLikeAux
       return (acc, buffer)
     let bodyBytes := buffer.extract bodyStart (bodyStart + contentLength)
     let rest := buffer.extract (bodyStart + contentLength) buffer.size
-    let bodyText ←
-      match String.fromUTF8? bodyBytes with
-      | some text => Except.ok text
-      | none => Except.error (framingError "invalid UTF-8 in body")
-    let json ← parseJson bodyText
-    decodeHttpLikeAux rest (acc.push json)
+    decodeHttpLikeAux rest (acc.push bodyBytes)
 
-def decodeHttpLike (buffer : ByteArray) : Except Error (Array Json × ByteArray) :=
+def decodeHttpLikeBytes
+    (buffer : ByteArray) : Except Error (Array ByteArray × ByteArray) :=
   decodeHttpLikeAux buffer #[]
 
-def encodeHttpLike (config : HttpLikeConfig) (json : Json) : ByteArray :=
-  let body := Json.compress json
-  let bodyBytes := body.toUTF8
-  let headers := config.headers ++ [("Content-Length", toString bodyBytes.size)]
+def encodeHttpLikeBytes (config : HttpLikeConfig) (payload : ByteArray) : ByteArray :=
+  let headers := config.headers ++ [("Content-Length", toString payload.size)]
   let headerLines := headers.map fun (key, value) => s!"{key}: {value}"
   let headerText :=
     String.intercalate "\r\n" (config.startLine :: headerLines) ++ "\r\n\r\n"
-  headerText.toUTF8 ++ bodyBytes
-
-def httpLike (config : HttpLikeConfig) : Framing :=
-  {
-    encode := encodeHttpLike config,
-    decode := decodeHttpLike
-  }
-
-def defaultHttpLike : Framing :=
-  httpLike {}
+  headerText.toUTF8 ++ payload
 
 end Framing
 end LeanWorker

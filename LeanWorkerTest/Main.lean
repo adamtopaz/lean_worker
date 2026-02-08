@@ -3,6 +3,7 @@ module
 public import LeanWorkerTest.Tests.Support
 public import LeanWorkerTest.StdioClientServerTest
 public import LeanWorkerTest.Tests.JsonRpc
+public import LeanWorkerTest.Tests.FramingCodec
 public import LeanWorkerTest.Tests.Batch
 public import LeanWorkerTest.Tests.Errors
 public import LeanWorkerTest.Tests.State
@@ -13,6 +14,19 @@ public section
 
 def main : IO Unit := do
   LeanWorkerTest.runTest "spawn stdio client server" LeanWorkerTest.testSpawnStdioClientServer
+  LeanWorkerTest.runTest "newline framing round trip" LeanWorkerTest.testNewlineFramingRoundTrip
+  LeanWorkerTest.runTest "newline framing multiple" LeanWorkerTest.testNewlineFramingMultipleFrames
+  LeanWorkerTest.runTest "newline framing partial" LeanWorkerTest.testNewlineFramingPartialFrame
+  LeanWorkerTest.runTest "content-length framing round trip" LeanWorkerTest.testContentLengthFramingRoundTrip
+  LeanWorkerTest.runTest "content-length framing partial" LeanWorkerTest.testContentLengthFramingPartialSecondFrame
+  LeanWorkerTest.runTest "content-length missing header" LeanWorkerTest.testContentLengthFramingMissingHeader
+  LeanWorkerTest.runTest "http-like framing round trip" LeanWorkerTest.testHttpLikeFramingRoundTrip
+  LeanWorkerTest.runTest "http-like missing start line" LeanWorkerTest.testHttpLikeFramingMissingStartLine
+  LeanWorkerTest.runTest "json codec round trip" LeanWorkerTest.testJsonCodecRoundTrip
+  LeanWorkerTest.runTest "json codec invalid utf8" LeanWorkerTest.testJsonCodecInvalidUtf8
+  LeanWorkerTest.runTest "json codec invalid json" LeanWorkerTest.testJsonCodecInvalidJson
+  LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
+  LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
   LeanWorkerTest.runTest "invalid request" LeanWorkerTest.testInvalidRequest
   LeanWorkerTest.runTest "empty batch" LeanWorkerTest.testEmptyBatch

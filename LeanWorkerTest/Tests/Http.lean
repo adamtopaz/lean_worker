@@ -69,8 +69,6 @@ def testHttpClosedConnection : IO Unit :=
     LeanWorkerTest.withRawHttp port fun transport => do
       let request := LeanWorkerTest.httpRequest "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"
       Async.block <| LeanWorkerTest.sendRawHttp transport request
-      match ← transport.outbox.close.toBaseIO with
-      | .ok _ => return
-      | .error _ => return
+      LeanWorkerTest.closeRawHttp transport
 
 end LeanWorkerTest

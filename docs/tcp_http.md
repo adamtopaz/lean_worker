@@ -1,27 +1,33 @@
 # TCP and HTTP Utilities
 
-TCP transport helpers and HTTP-like utilities are implemented in:
+TCP helpers and HTTP wrappers are implemented in:
 
 - `LeanWorker/Transport/Tcp.lean`
 - `LeanWorker/Http/Types.lean`
 - `LeanWorker/Http/Server.lean`
 - `LeanWorker/Http/Client.lean`
 
-## TCP ByteTransport
+## TCP Typed Transport
+
+Use typed constructors directly.
 
 ```lean
+open LeanWorker
 open LeanWorker.Transport.Tcp
 
-def connect : Async Transport.ByteTransport :=
-  connectByteTransport addr
+def connect : Async (Transport.Transport (Except JsonRpc.Error Lean.Json) Lean.Json) :=
+  connectJsonTransport addr .contentLength
 
 def listen : Async Tcp.Listener :=
-  listenByteTransport addr (fun byteTransport => do
-    let transport ← Async.framedTransport byteTransport Framing.newline
+  listenJsonTransport addr (fun transport => do
     Server.run server () state)
+  .contentLength
 ```
 
-Each accepted TCP connection gets its own byte transport; you can share a server state by passing the same `Std.Mutex` to each `Server.run` call.
+For custom payload types, use:
+
+- `Tcp.connectTransport addr frameSpec codec`
+- `Tcp.listenTransport addr handle frameSpec codec`
 
 ## HTTP-like Server
 
@@ -58,4 +64,4 @@ def main : IO Unit := do
 
 ## Notes
 
-HTTP-like framing is intended for simple JSON-RPC request/response interactions. It is not a fully compliant HTTP server, but it is compatible with `curl` and basic HTTP clients.
+HTTP-like mode is intended for simple request/response compatibility (for example with `curl`); it is not a full HTTP server implementation.

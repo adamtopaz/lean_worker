@@ -1,6 +1,7 @@
 module
 
 public import LeanWorker.Transport.Logging
+public import LeanWorker.Transport.Streams
 public import LeanWorker.Async.Loops
 public import Std.Internal.Async.TCP
 public import Std.Sync.Channel
@@ -15,6 +16,8 @@ open Std.Internal.IO.Async
 open Std.Internal.IO.Async.TCP
 open Std.Net
 
+private abbrev ByteTransport := LeanWorker.Transport.Transport ByteArray ByteArray
+
 abbrev logLevelTag : LogLevel → String := Transport.logLevelTag
 
 abbrev stderrLogger (label : String) : IO (LogLevel → String → IO Unit) :=
@@ -27,7 +30,7 @@ def defaultLogger : IO (LogLevel → String → IO Unit) :=
 
 def defaultReadSize : UInt64 := 4096
 
-partial def clientReadLoop
+private partial def clientReadLoop
     (client : TCP.Socket.Client)
     (log : LogLevel → String → IO Unit)
     (inbox : Std.CloseableChannel ByteArray) : Async Unit := do
@@ -40,7 +43,7 @@ partial def clientReadLoop
     if sent then
       clientReadLoop client log inbox
 
-partial def clientWriteLoop
+private partial def clientWriteLoop
     (client : TCP.Socket.Client)
     (log : LogLevel → String → IO Unit)
     (outbox : Std.CloseableChannel ByteArray) : Async Unit := do
@@ -58,7 +61,7 @@ partial def clientWriteLoop
       LeanWorker.Async.logError log s!"tcp send error: {err}"
       LeanWorker.Async.closeOrLog log "tcp outbox" outbox
 
-def byteTransportFromClient
+private def byteTransportFromClient
     (client : TCP.Socket.Client)
     (log : LogLevel → String → IO Unit) : Async ByteTransport := do
   let inbox : Std.CloseableChannel ByteArray ← Std.CloseableChannel.new
@@ -87,17 +90,45 @@ def byteTransportFromClient
     await writerTask
   return { inbox, outbox, log, shutdown }
 
-def connectByteTransport
+private def connectRawByteTransport
     (addr : SocketAddress)
     (log : LogLevel → String → IO Unit := silentLogger) : Async ByteTransport := do
   let client ← TCP.Socket.Client.mk
   TCP.Socket.Client.connect client addr
   byteTransportFromClient client log
 
+private def transportFromRawByteTransport
+    (rawTransport : ByteTransport)
+    (frameSpec : FrameSpec)
+    (codec : Codec Incoming Outgoing) :
+    Async (Transport.Transport (Except JsonRpc.Error Incoming) Outgoing) :=
+  Async.framedCodecTransport
+    rawTransport
+    (Transport.encodeFrame frameSpec)
+    (Transport.decodeFrame frameSpec)
+    codec
+
+def connectTransport
+    (addr : SocketAddress)
+    (frameSpec : FrameSpec)
+    (codec : Codec Incoming Outgoing)
+    (log : LogLevel → String → IO Unit := silentLogger) :
+    Async (Transport.Transport (Except JsonRpc.Error Incoming) Outgoing) := do
+  let rawTransport ← connectRawByteTransport addr (log := log)
+  transportFromRawByteTransport rawTransport frameSpec codec
+
+def connectJsonTransport
+    (addr : SocketAddress)
+    (frameSpec : FrameSpec := .contentLength)
+    (log : LogLevel → String → IO Unit := silentLogger) :
+    Async (Transport.Transport (Except JsonRpc.Error Lean.Json) Lean.Json) := do
+  let rawTransport ← connectRawByteTransport addr (log := log)
+  transportFromRawByteTransport rawTransport frameSpec (JsonRpc.jsonCodec : Codec Lean.Json Lean.Json)
+
 structure Listener where
   shutdown : Async Unit
 
-partial def acceptLoop
+private partial def acceptLoop
     (server : TCP.Socket.Server)
     (stopRef : IO.Ref Bool)
     (log : LogLevel → String → IO Unit)
@@ -118,7 +149,7 @@ partial def acceptLoop
     IO.sleep 10
     acceptLoop server stopRef log handle
 
-def listenByteTransport
+private def listenRawByteTransport
     (addr : SocketAddress)
     (handle : ByteTransport → Async Unit)
     (backlog : UInt32 := 128)
@@ -132,6 +163,37 @@ def listenByteTransport
     stopRef.set true
     await task
   return { shutdown }
+
+def listenTransport
+    (addr : SocketAddress)
+    (handle : Transport.Transport (Except JsonRpc.Error Incoming) Outgoing → Async Unit)
+    (frameSpec : FrameSpec)
+    (codec : Codec Incoming Outgoing)
+    (backlog : UInt32 := 128)
+    (log : LogLevel → String → IO Unit := silentLogger) : Async Listener :=
+  listenRawByteTransport addr
+    (backlog := backlog)
+    (log := log)
+    (handle := fun rawTransport => do
+      let transport ← transportFromRawByteTransport rawTransport frameSpec codec
+      handle transport)
+
+def listenJsonTransport
+    (addr : SocketAddress)
+    (handle : Transport.Transport (Except JsonRpc.Error Lean.Json) Lean.Json → Async Unit)
+    (frameSpec : FrameSpec := .contentLength)
+    (backlog : UInt32 := 128)
+    (log : LogLevel → String → IO Unit := silentLogger) : Async Listener :=
+  listenRawByteTransport addr
+    (backlog := backlog)
+    (log := log)
+    (handle := fun rawTransport => do
+      let transport ←
+        transportFromRawByteTransport
+          rawTransport
+          frameSpec
+          (JsonRpc.jsonCodec : Codec Lean.Json Lean.Json)
+      handle transport)
 
 end Tcp
 end Transport
