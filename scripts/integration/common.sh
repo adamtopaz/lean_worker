@@ -15,9 +15,7 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
 fi
 
 ensure_build() {
-  if [ ! -x "$BIN" ]; then
-    (cd "$ROOT" && lake build full_server)
-  fi
+  (cd "$ROOT" && lake build full_server)
 }
 
 start_tcp_server() {

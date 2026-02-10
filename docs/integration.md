@@ -11,6 +11,7 @@ scripts/integration/run.sh
 ## Scripts
 
 - `stdio_newline.sh`: launches `full_server` over stdio + newline framing and checks basic requests.
+- `stdio_framed_streams.sh`: launches `full_server` over stdio with content-length/http-like framing, checks large payload handling, and validates malformed-header parse errors.
 - `tcp_content_length.sh`: uses raw sockets with content-length framing; validates success and error cases.
 - `http_like.sh`: uses `curl` to test HTTP-like framing, including a parse-error case.
 
