@@ -28,12 +28,12 @@ def handlers : HandlerRegistry Unit Unit :=
     |>.addStateless "echo" echoHandler
     |>.addStateless "throw" throwHandler
 
-def runStdioClientServer : IO Unit := do
+def runStdioClientServer (frameSpec : Transport.FrameSpec := .newline) : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   let log ← Transport.stderrLogger "SERVER"
   let transport ← Async.block <|
-    Transport.jsonTransportFromStreams stdin stdout .newline log
+    Transport.jsonTransportFromStreams stdin stdout frameSpec log
   let server : Server Unit Unit :=
     {
       handlers := handlers,
@@ -43,13 +43,16 @@ def runStdioClientServer : IO Unit := do
   let state ← Std.Mutex.new ()
   Async.block <| Server.run server () state
 
-def testSpawnStdioClientServer : IO Unit := do
+def testSpawnStdioClientServerWithFraming
+    (serveArg : String)
+    (frameSpec : Transport.FrameSpec) : IO Unit := do
   let client ← Async.block <|
     Client.spawnStdioClient
       {
         cmd := "lake",
-        args := #["exe", "stdio_client_server_test", "--serve"]
+        args := #["exe", "stdio_client_server_test", serveArg]
       }
+      frameSpec
   try
     let echoParams := objParams
       [
@@ -78,5 +81,11 @@ def testSpawnStdioClientServer : IO Unit := do
       Async.block client.shutdown
     catch _ =>
       pure ()
+
+def testSpawnStdioClientServer : IO Unit :=
+  testSpawnStdioClientServerWithFraming "--serve" .newline
+
+def testSpawnStdioClientServerContentLength : IO Unit :=
+  testSpawnStdioClientServerWithFraming "--serve-content-length" .contentLength
 
 end LeanWorkerTest

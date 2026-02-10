@@ -182,10 +182,15 @@ def runServer : IO Unit := do
 open LeanWorker
 
 def main : IO Unit := do
-  let client ← Async.block <| Client.spawnStdioClient ({ cmd := "./path/to/server" } : Transport.SpawnConfig)
+  let client ← Async.block <|
+    Client.spawnStdioClient
+      ({ cmd := "./path/to/server" } : Transport.SpawnConfig)
+      .newline
   let result ← EIO.toIO' <| EAsync.block <| client.request "ping" none
   IO.println s!"{result}"
 ```
+
+Use the optional second argument on `Client.spawnStdioClient` to match non-newline servers (for example `.contentLength` or `.httpLike {}`).
 
 ### Client with custom streams (content-length framing)
 ```lean

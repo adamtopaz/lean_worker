@@ -149,9 +149,11 @@ def getClient
 
   return { request, notify, batch, shutdown }
 
-def spawnStdioClient (config : Transport.SpawnConfig) : Async Client := do
+def spawnStdioClient
+    (config : Transport.SpawnConfig)
+    (frameSpec : Transport.FrameSpec := .newline) : Async Client := do
   let log ← Transport.stderrLogger "CLIENT"
-  let transport ← Transport.spawnStdioTransport config (log := log)
+  let transport ← Transport.spawnStdioTransport config frameSpec (log := log)
   getClient transport
 
 end Client

@@ -26,6 +26,20 @@ def main : IO Unit := do
   IO.println s!"{result}"
 ```
 
+You can pass an optional second argument to select framing for the spawned transport:
+
+```lean
+open LeanWorker
+
+def main : IO Unit := do
+  let client ← Async.block <|
+    Client.spawnStdioClient
+      ({ cmd := "./server" } : Transport.SpawnConfig)
+      .contentLength
+  let result ← EIO.toIO' <| EAsync.block <| client.request "ping" none
+  IO.println s!"{result}"
+```
+
 ## Batch Requests
 
 Use `Client.batch` to send a mix of requests and notifications. Responses are returned as an array of options, aligned with input order (notifications yield `none`).
