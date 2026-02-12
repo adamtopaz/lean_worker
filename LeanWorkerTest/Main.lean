@@ -4,6 +4,7 @@ public import LeanWorkerTest.Tests.Support
 public import LeanWorkerTest.StdioClientServerTest
 public import LeanWorkerTest.Tests.JsonRpc
 public import LeanWorkerTest.Tests.FramingCodec
+public import LeanWorkerTest.Tests.Encoding
 public import LeanWorkerTest.Tests.Batch
 public import LeanWorkerTest.Tests.Errors
 public import LeanWorkerTest.Tests.State
@@ -26,6 +27,13 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "json codec round trip" LeanWorkerTest.testJsonCodecRoundTrip
   LeanWorkerTest.runTest "json codec invalid utf8" LeanWorkerTest.testJsonCodecInvalidUtf8
   LeanWorkerTest.runTest "json codec invalid json" LeanWorkerTest.testJsonCodecInvalidJson
+  LeanWorkerTest.runTest "base64 known vectors" LeanWorkerTest.testBase64KnownVectors
+  LeanWorkerTest.runTest "base64 binary round trip" LeanWorkerTest.testBase64BinaryRoundTrip
+  LeanWorkerTest.runTest "base64 invalid inputs" LeanWorkerTest.testBase64InvalidInputs
+  LeanWorkerTest.runTest "base64 canonical padding" LeanWorkerTest.testBase64NonCanonicalPaddingBits
+  LeanWorkerTest.runTest "binary bytearray instances" LeanWorkerTest.testToFromBinaryByteArray
+  LeanWorkerTest.runTest "binary string instances" LeanWorkerTest.testToFromBinaryString
+  LeanWorkerTest.runTest "binary invalid utf8" LeanWorkerTest.testFromBinaryStringInvalidUtf8
   LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
   LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
