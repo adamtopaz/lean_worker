@@ -644,23 +644,26 @@ private partial def validateExprRefs (expr : Expr) : ValidateM Unit :=
   | .proj _ _ structExpr =>
     validateExprRefs structExpr
 
+def encodeExprRaw (expr : Expr) : ByteArray :=
+  encodeWirePayload <| runEncoder <| encodeExprCore expr
+
+def decodeExprRaw? (input : ByteArray) : Except String Expr := do
+  let payload ← decodeWirePayload? input
+  decodeExprPayload? payload
+
 def encodeExpr (expr : Expr) : MetaM ByteArray :=
-  return encodeWirePayload <| runEncoder <| encodeExprCore expr
+  return encodeExprRaw expr
 
 def decodeExpr? (input : ByteArray) : MetaM (Except String Expr) := do
-  match decodeWirePayload? input with
+  match decodeExprRaw? input with
   | .error err =>
     return .error err
-  | .ok payload =>
-    match decodeExprPayload? payload with
+  | .ok expr =>
+    match (← validateExprRefs expr |>.run) with
     | .error err =>
       return .error err
-    | .ok expr =>
-      match (← validateExprRefs expr |>.run) with
-      | .error err =>
-        return .error err
-      | .ok _ =>
-        return .ok expr
+    | .ok _ =>
+      return .ok expr
 
 end Encoding
 end LeanWorker

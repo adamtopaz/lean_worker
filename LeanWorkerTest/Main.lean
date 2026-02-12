@@ -44,6 +44,10 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "expr binary invalid version" LeanWorkerTest.testExprBinaryInvalidVersion
   LeanWorkerTest.runTest "expr binary invalid tag" LeanWorkerTest.testExprBinaryInvalidTag
   LeanWorkerTest.runTest "expr binary trailing data" LeanWorkerTest.testExprBinaryTrailingData
+  LeanWorkerTest.runTest "meta context/state semantic round trip" LeanWorkerTest.testMetaContextStateSemanticRoundTrip
+  LeanWorkerTest.runTest "meta context rejects canUnfold" LeanWorkerTest.testMetaContextEncodeRejectsCanUnfold
+  LeanWorkerTest.runTest "meta context invalid magic" LeanWorkerTest.testMetaContextInvalidMagic
+  LeanWorkerTest.runTest "meta state invalid magic" LeanWorkerTest.testMetaStateInvalidMagic
   LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
   LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
