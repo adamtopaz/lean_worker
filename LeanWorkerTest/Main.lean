@@ -34,6 +34,16 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "binary bytearray instances" LeanWorkerTest.testToFromBinaryByteArray
   LeanWorkerTest.runTest "binary string instances" LeanWorkerTest.testToFromBinaryString
   LeanWorkerTest.runTest "binary invalid utf8" LeanWorkerTest.testFromBinaryStringInvalidUtf8
+  LeanWorkerTest.runTest "expr binary round trip" LeanWorkerTest.testExprBinaryRoundTrip
+  LeanWorkerTest.runTest "expr binary init env types" LeanWorkerTest.testExprBinaryRoundTripInitEnvTypes
+  LeanWorkerTest.runTest "expr binary init env values" LeanWorkerTest.testExprBinaryRoundTripInitEnvValues
+  LeanWorkerTest.runTest "expr binary unknown fvar" LeanWorkerTest.testExprBinaryDecodeUnknownFVar
+  LeanWorkerTest.runTest "expr binary unknown mvar" LeanWorkerTest.testExprBinaryDecodeUnknownMVar
+  LeanWorkerTest.runTest "expr binary unknown lmvar" LeanWorkerTest.testExprBinaryDecodeUnknownLMVar
+  LeanWorkerTest.runTest "expr binary invalid magic" LeanWorkerTest.testExprBinaryInvalidMagic
+  LeanWorkerTest.runTest "expr binary invalid version" LeanWorkerTest.testExprBinaryInvalidVersion
+  LeanWorkerTest.runTest "expr binary invalid tag" LeanWorkerTest.testExprBinaryInvalidTag
+  LeanWorkerTest.runTest "expr binary trailing data" LeanWorkerTest.testExprBinaryTrailingData
   LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
   LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
