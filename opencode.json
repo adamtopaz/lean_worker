@@ -5,12 +5,5 @@
       "command": ["lake", "serve"],
       "extensions": [".lean"]
     }
-  },
-  "mcp": {
-    "lean4": {
-      "type": "remote",
-      "url": "https://gitmcp.io/leanprover/lean4",
-      "enabled": true
-    }
   }
 }
