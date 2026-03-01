@@ -2,6 +2,8 @@
 
 This directory contains detailed documentation for each component of the LeanWorker JSON-RPC framework.
 
+LeanWorker docs cover JSON-RPC runtime infrastructure only. Base64/binary and Lean expression/meta-state serialization docs now live in the `lean_codec` project.
+
 ## Quick Start
 
 Build everything:

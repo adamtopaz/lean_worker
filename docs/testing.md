@@ -19,3 +19,4 @@ scripts/integration/run.sh
 
 - The parse-error test intentionally logs a codec decode error to stderr (expected).
 - The HTTP-like integration test sends invalid JSON and logs a parse error (expected).
+- Base64/binary and Lean `Expr`/`Meta` codec tests were moved to `lean_codec` and run via `lake exe run_tests` there.

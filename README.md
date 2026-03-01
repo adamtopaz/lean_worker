@@ -2,12 +2,18 @@
 
 Lean 4 framework for building async-first JSON-RPC 2.0 servers and clients with pluggable transports and framings.
 
+LeanWorker is intentionally focused on JSON-RPC runtime concerns (protocol validation, framing, transport, server, and client APIs).
+
 ## Features
 - Strict JSON-RPC 2.0 validation (version, ids, method rules, batches).
 - Async server runtime with stateful/stateless handlers and notifications.
 - Client runtime with pending request tracking and batch support.
 - Transport and framing abstractions (newline, content-length, HTTP-like).
 - Stdio subprocess client support (newline framing) plus end-to-end tests.
+
+## Scope Note
+
+- Base64 and binary serialization codecs (including Lean `Expr` and `Meta.Context`/`Meta.State` codecs) now live in the `lean_codec` project under `LeanCodec.Encoding.*`.
 
 ## Documentation
 
@@ -49,6 +55,7 @@ lake exe run_tests
 ```
 
 Note: the parse-error test logs a codec decode error to stderr (expected).
+Codec-focused encoding tests are maintained in `lean_codec` (`LeanCodecTest`).
 
 ## Integration Tests
 ```bash

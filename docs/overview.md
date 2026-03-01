@@ -2,6 +2,8 @@
 
 LeanWorker is an async-first JSON-RPC 2.0 framework for Lean 4.
 
+This repository focuses on JSON-RPC runtime infrastructure. Base64/binary and Lean expression/meta-state serialization live in the `lean_codec` project.
+
 ## Layers
 
 1. JSON-RPC types + validation (`LeanWorker/JsonRpc/*`)
