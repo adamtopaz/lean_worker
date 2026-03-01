@@ -104,6 +104,7 @@ private def encodeTransparencyMode (mode : TransparencyMode) : Encoder Unit :=
   | .default => emitTag 1
   | .reducible => emitTag 2
   | .instances => emitTag 3
+  | .none => emitTag 4
 
 private def encodeEtaStructMode (mode : EtaStructMode) : Encoder Unit :=
   match mode with
@@ -407,6 +408,7 @@ private def decodeTransparencyModeAt (input : ByteArray) (index : Nat) : Except 
   | 1 => return (.default, nextIndex)
   | 2 => return (.reducible, nextIndex)
   | 3 => return (.instances, nextIndex)
+  | 4 => return (.none, nextIndex)
   | _ => throw s!"invalid transparency mode tag {tag} at byte index {index}"
 
 private def decodeEtaStructModeAt (input : ByteArray) (index : Nat) : Except String (EtaStructMode × Nat) := do
