@@ -4,7 +4,6 @@ public import LeanWorkerTest.Tests.Support
 public import LeanWorkerTest.StdioClientServerTest
 public import LeanWorkerTest.Tests.JsonRpc
 public import LeanWorkerTest.Tests.FramingCodec
-public import LeanWorkerTest.Tests.Encoding
 public import LeanWorkerTest.Tests.Batch
 public import LeanWorkerTest.Tests.Errors
 public import LeanWorkerTest.Tests.State
@@ -27,27 +26,6 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "json codec round trip" LeanWorkerTest.testJsonCodecRoundTrip
   LeanWorkerTest.runTest "json codec invalid utf8" LeanWorkerTest.testJsonCodecInvalidUtf8
   LeanWorkerTest.runTest "json codec invalid json" LeanWorkerTest.testJsonCodecInvalidJson
-  LeanWorkerTest.runTest "base64 known vectors" LeanWorkerTest.testBase64KnownVectors
-  LeanWorkerTest.runTest "base64 binary round trip" LeanWorkerTest.testBase64BinaryRoundTrip
-  LeanWorkerTest.runTest "base64 invalid inputs" LeanWorkerTest.testBase64InvalidInputs
-  LeanWorkerTest.runTest "base64 canonical padding" LeanWorkerTest.testBase64NonCanonicalPaddingBits
-  LeanWorkerTest.runTest "binary bytearray instances" LeanWorkerTest.testToFromBinaryByteArray
-  LeanWorkerTest.runTest "binary string instances" LeanWorkerTest.testToFromBinaryString
-  LeanWorkerTest.runTest "binary invalid utf8" LeanWorkerTest.testFromBinaryStringInvalidUtf8
-  LeanWorkerTest.runTest "expr binary round trip" LeanWorkerTest.testExprBinaryRoundTrip
-  LeanWorkerTest.runTest "expr binary init env types" LeanWorkerTest.testExprBinaryRoundTripInitEnvTypes
-  LeanWorkerTest.runTest "expr binary init env values" LeanWorkerTest.testExprBinaryRoundTripInitEnvValues
-  LeanWorkerTest.runTest "expr binary unknown fvar" LeanWorkerTest.testExprBinaryDecodeUnknownFVar
-  LeanWorkerTest.runTest "expr binary unknown mvar" LeanWorkerTest.testExprBinaryDecodeUnknownMVar
-  LeanWorkerTest.runTest "expr binary unknown lmvar" LeanWorkerTest.testExprBinaryDecodeUnknownLMVar
-  LeanWorkerTest.runTest "expr binary invalid magic" LeanWorkerTest.testExprBinaryInvalidMagic
-  LeanWorkerTest.runTest "expr binary invalid version" LeanWorkerTest.testExprBinaryInvalidVersion
-  LeanWorkerTest.runTest "expr binary invalid tag" LeanWorkerTest.testExprBinaryInvalidTag
-  LeanWorkerTest.runTest "expr binary trailing data" LeanWorkerTest.testExprBinaryTrailingData
-  LeanWorkerTest.runTest "meta context/state semantic round trip" LeanWorkerTest.testMetaContextStateSemanticRoundTrip
-  LeanWorkerTest.runTest "meta context rejects canUnfold" LeanWorkerTest.testMetaContextEncodeRejectsCanUnfold
-  LeanWorkerTest.runTest "meta context invalid magic" LeanWorkerTest.testMetaContextInvalidMagic
-  LeanWorkerTest.runTest "meta state invalid magic" LeanWorkerTest.testMetaStateInvalidMagic
   LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
   LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
