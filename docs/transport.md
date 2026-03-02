@@ -31,3 +31,5 @@ These constructors apply framing + JSON decode/encode internally and expose JSON
 - No generic `Transport Incoming Outgoing` abstraction.
 - No generic transport codec abstraction.
 - No TCP transport support in this repository at the moment.
+- `shutdown` returns `Except String Unit` and should be treated as the authoritative shutdown result.
+- `Transport.SpawnConfig.shutdownTimeoutMs? = none` means an unbounded graceful child wait and may block forever if the child never exits.

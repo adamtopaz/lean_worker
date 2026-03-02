@@ -182,16 +182,20 @@ private partial def writeJsonLoop
 private partial def awaitTaskWithTimeout
     (task : AsyncTask Unit)
     (remainingPolls : Nat)
-    (pollMs : UInt32 := 20) : Async Bool := do
+    (pollMs : UInt32 := 20) : Async (Except String Bool) := do
   match remainingPolls with
   | 0 =>
-    return false
+    return .ok false
   | remainingPolls + 1 =>
     if (← task.getState) == .finished then
-      await task
-      return true
-    IO.sleep pollMs
-    awaitTaskWithTimeout task remainingPolls pollMs
+      try
+        await task
+        return .ok true
+      catch err =>
+        return .error s!"task failed while awaiting completion: {err}"
+    else
+      IO.sleep pollMs
+      awaitTaskWithTimeout task remainingPolls pollMs
 
 private def transportFromStreamsCore
     (readStream writeStream : IO.FS.Stream)
@@ -219,26 +223,59 @@ private def transportFromStreamsCore
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
   let shutdown : Async (Except String Unit) := do
     LeanWorker.Transport.closeOrLog log "json outbox" outbox
-    let writerDone ← awaitTaskWithTimeout writerTask 50
-    if !writerDone then
-      LeanWorker.Transport.logError log "writer task did not finish before shutdown action"
+    let writerError? ←
+      match ← awaitTaskWithTimeout writerTask 50 with
+      | .ok true =>
+        pure none
+      | .ok false =>
+        let message := "writer task did not finish before shutdown action"
+        LeanWorker.Transport.logError log message
+        pure (some message)
+      | .error err =>
+        let message := s!"writer task failed during shutdown: {err}"
+        LeanWorker.Transport.logError log message
+        pure (some message)
     let shutdownResult ← shutdownAction
+    let shutdownError? :=
+      match shutdownResult with
+      | .ok _ => none
+      | .error message => some message
+    if writerError?.isSome || shutdownError?.isSome then
+      LeanWorker.Transport.closeOrLog log "json inbox" inbox
+    let readerError? ←
+      match ← awaitTaskWithTimeout readerTask 50 with
+      | .ok true =>
+        pure none
+      | .ok false =>
+        let message := "reader task did not finish during shutdown"
+        LeanWorker.Transport.logError log message
+        pure (some message)
+      | .error err =>
+        let message := s!"reader task failed during shutdown: {err}"
+        LeanWorker.Transport.logError log message
+        pure (some message)
+    let mut errors : Array String := #[]
+    match writerError? with
+    | some message =>
+      errors := errors.push message
+    | none =>
+      pure ()
     match shutdownResult with
     | .ok _ =>
-      let readerDone ← awaitTaskWithTimeout readerTask 50
-      if readerDone then
-        return .ok ()
-      else
-        LeanWorker.Transport.logError log "reader task did not finish after successful shutdown"
-        LeanWorker.Transport.closeOrLog log "json inbox" inbox
-        return .error "reader task did not finish after successful shutdown"
+      pure ()
     | .error message =>
       LeanWorker.Transport.logError log s!"shutdown action failed: {message}"
+      errors := errors.push message
+    match readerError? with
+    | some message =>
+      errors := errors.push message
+    | none =>
+      pure ()
+    if errors.isEmpty then
+      return .ok ()
+    else
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
-      let readerDone ← awaitTaskWithTimeout readerTask 50
-      if !readerDone then
-        LeanWorker.Transport.logError log "reader task did not finish after failed shutdown"
-      return .error message
+      return .error (String.intercalate "; " errors.toList)
   return (inbox, outbox, shutdown)
 
 def serverTransportFromStreams

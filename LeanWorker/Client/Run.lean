@@ -20,16 +20,20 @@ open Std.Internal.IO.Async
 private partial def awaitTaskWithTimeout
     (task : AsyncTask Unit)
     (remainingPolls : Nat)
-    (pollMs : UInt32 := 20) : Async Bool := do
+    (pollMs : UInt32 := 20) : Async (Except String Bool) := do
   match remainingPolls with
   | 0 =>
-    return false
+    return .ok false
   | remainingPolls + 1 =>
     if (← task.getState) == .finished then
-      await task
-      return true
-    IO.sleep pollMs
-    awaitTaskWithTimeout task remainingPolls pollMs
+      try
+        await task
+        return .ok true
+      catch err =>
+        return .error s!"task failed while awaiting completion: {err}"
+    else
+      IO.sleep pollMs
+      awaitTaskWithTimeout task remainingPolls pollMs
 
 def getClient
     (transport : LeanWorker.Transport.ClientTransport) : Async Client := do
@@ -156,18 +160,38 @@ def getClient
           | none => return some (.error Error.internalError)
 
   let shutdown : Async (Except String Unit) := do
-    let transportResult ← transport.shutdown
-    let readerDone ← awaitTaskWithTimeout readerTask 50
-    if readerDone then
-      return transportResult
+    let transportResult ←
+      try
+        transport.shutdown
+      catch err =>
+        pure (.error s!"transport shutdown threw exception: {err}")
+    let readerError? ←
+      match ← awaitTaskWithTimeout readerTask 50 with
+      | .ok true =>
+        pure none
+      | .ok false =>
+        let message := "client reader task did not finish during shutdown"
+        logError message
+        pure (some message)
+      | .error err =>
+        let message := s!"client reader task failed during shutdown: {err}"
+        logError message
+        pure (some message)
+    let mut errors : Array String := #[]
+    match transportResult with
+    | .ok _ =>
+      pure ()
+    | .error message =>
+      errors := errors.push message
+    match readerError? with
+    | some message =>
+      errors := errors.push message
+    | none =>
+      pure ()
+    if errors.isEmpty then
+      return .ok ()
     else
-      let message := "client reader task did not finish during shutdown"
-      logError message
-      match transportResult with
-      | .ok _ =>
-        return .error message
-      | .error transportMessage =>
-        return .error s!"{transportMessage}; {message}"
+      return .error (String.intercalate "; " errors.toList)
 
   return { request, notify, batch, shutdown }
 

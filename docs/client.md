@@ -68,3 +68,4 @@ def runBatch (client : Client.Client) : EAsync Error Unit := do
 
 `Client.shutdown` closes the outbox, shuts down the transport, and resolves any pending promises with `Error.internalError`.
 It returns `Except String Unit` so callers can observe transport shutdown failures.
+When using spawned transports, `Transport.SpawnConfig.shutdownTimeoutMs? = none` performs an unbounded graceful wait and can block forever if the child does not exit.
