@@ -14,6 +14,8 @@ public section
 def main : IO Unit := do
   LeanWorkerTest.runTest "spawn stdio client server" LeanWorkerTest.testSpawnStdioClientServer
   LeanWorkerTest.runTest "spawn stdio client server content-length" LeanWorkerTest.testSpawnStdioClientServerContentLength
+  LeanWorkerTest.runTest "spawn stdio client graceful shutdown" LeanWorkerTest.testSpawnStdioClientGracefulShutdownCompletes
+  LeanWorkerTest.runTest "spawn stdio client fallback kill shutdown" LeanWorkerTest.testSpawnStdioClientShutdownFallbackKill
   LeanWorkerTest.runTest "newline framing round trip" LeanWorkerTest.testNewlineFramingRoundTrip
   LeanWorkerTest.runTest "newline framing multiple" LeanWorkerTest.testNewlineFramingMultipleFrames
   LeanWorkerTest.runTest "newline framing partial" LeanWorkerTest.testNewlineFramingPartialFrame

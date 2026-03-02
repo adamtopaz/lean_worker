@@ -116,7 +116,8 @@ where
     let mut tasks : Array (AsyncTask Unit) := #[]
     repeat
       if let some max := server.maxTasks then
-        while tasks.size > max do
+        let max := Nat.max max 1
+        while tasks.size >= max do
           tasks ← filterTasks tasks
       match ← await <| ← server.transport.inbox.recv with
       | none => break

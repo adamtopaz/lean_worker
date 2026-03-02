@@ -22,12 +22,12 @@ inductive FrameSpec where
   | contentLength
 deriving Inhabited
 
-def encodeFrame (frameSpec : FrameSpec) : ByteArray → ByteArray :=
+private def encodeFrame (frameSpec : FrameSpec) : ByteArray → ByteArray :=
   match frameSpec with
   | .newline => Framing.encodeNewlineBytes
   | .contentLength => Framing.encodeContentLengthBytes
 
-def decodeFrame
+private def decodeFrame
     (frameSpec : FrameSpec) :
     ByteArray → Except JsonRpc.Error (Array ByteArray × ByteArray) :=
   match frameSpec with
@@ -205,9 +205,10 @@ private def transportFromStreamsCore
     catch err =>
       LeanWorker.Transport.logError log s!"json write task error: {err}"
   let shutdown : Async Unit := do
-    await readerTask
+    LeanWorker.Transport.closeOrLog log "json outbox" outbox
     await writerTask
     shutdownAction
+    await readerTask
   return (inbox, outbox, shutdown)
 
 def serverTransportFromStreams

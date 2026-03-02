@@ -142,7 +142,6 @@ def getClient
           | none => return some (.error Error.internalError)
 
   let shutdown : Async Unit := do
-    LeanWorker.Transport.closeOrLog transport.log "client outbox" transport.outbox
     transport.shutdown
     await readerTask
 

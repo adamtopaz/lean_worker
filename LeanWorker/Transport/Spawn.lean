@@ -10,6 +10,47 @@ namespace Transport
 
 open Std.Internal.IO.Async
 
+private partial def waitForExitGracefully
+    {cfg : IO.Process.StdioConfig}
+    (child : IO.Process.Child cfg)
+    (remainingPolls : Nat)
+    (pollMs : UInt32 := 20) : Async Bool := do
+  match ← child.tryWait with
+  | some _ =>
+    return true
+  | none =>
+    match remainingPolls with
+    | 0 =>
+      return false
+    | remainingPolls + 1 =>
+      IO.sleep pollMs
+      waitForExitGracefully child remainingPolls pollMs
+
+private def shutdownChild
+    {cfg : IO.Process.StdioConfig}
+    (child : IO.Process.Child cfg)
+    (timeoutMs? : Option Nat)
+    (pollMs : UInt32 := 20) : Async Unit := do
+  let waitChild : Async Unit := do
+    try
+      let _ ← child.wait
+      return
+    catch _ =>
+      return
+  match timeoutMs? with
+  | none =>
+    waitChild
+  | some timeoutMs =>
+    let pollNat := UInt32.toNat pollMs
+    let polls := (timeoutMs + pollNat - 1) / pollNat
+    let exited ← waitForExitGracefully child polls pollMs
+    if !exited then
+      try
+        child.kill
+      catch _ =>
+        pure ()
+    waitChild
+
 structure SpawnConfig where
   cmd : String
   args : Array String := #[]
@@ -17,6 +58,7 @@ structure SpawnConfig where
   env : Array (String × Option String) := #[]
   inheritEnv : Bool := true
   stderr : IO.Process.Stdio := .inherit
+  shutdownTimeoutMs? : Option Nat := some 1000
 
 abbrev spawnArgs (config : SpawnConfig) : IO.Process.SpawnArgs :=
   {
@@ -40,9 +82,8 @@ def spawnStdioClientTransport
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
   let stdoutStream := IO.FS.Stream.ofHandle child.stdout
   let shutdownAction : Async Unit := do
-    let _ ← child.wait
-    return
-  clientTransportFromStreams
+    shutdownChild child config.shutdownTimeoutMs?
+  LeanWorker.Transport.clientTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec
@@ -59,9 +100,8 @@ def spawnStdioServerTransport
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
   let stdoutStream := IO.FS.Stream.ofHandle child.stdout
   let shutdownAction : Async Unit := do
-    let _ ← child.wait
-    return
-  serverTransportFromStreams
+    shutdownChild child config.shutdownTimeoutMs?
+  LeanWorker.Transport.serverTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec

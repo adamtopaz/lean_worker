@@ -88,4 +88,46 @@ def testSpawnStdioClientServer : IO Unit :=
 def testSpawnStdioClientServerContentLength : IO Unit :=
   testSpawnStdioClientServerWithFraming "--serve-content-length" .contentLength
 
+private partial def waitForTaskFinish
+    (task : AsyncTask Unit)
+    (remainingPolls : Nat) : IO Bool := do
+  match remainingPolls with
+  | 0 =>
+    return false
+  | remainingPolls + 1 => do
+    if (← task.getState) == .finished then
+      return true
+    IO.sleep 20
+    waitForTaskFinish task remainingPolls
+
+def testSpawnStdioClientGracefulShutdownCompletes : IO Unit := do
+  let client ← Async.block <|
+    Client.spawnStdioClient
+      {
+        cmd := "lake",
+        args := #["exe", "stdio_client_server_test", "--serve"],
+        shutdownTimeoutMs? := none
+      }
+      .newline
+  let shutdownTask ← Async.block <| async client.shutdown
+  let finished ← waitForTaskFinish shutdownTask 200
+  assert finished "spawned stdio client graceful shutdown did not complete in time"
+  if finished then
+    Async.block <| await shutdownTask
+
+def testSpawnStdioClientShutdownFallbackKill : IO Unit := do
+  let client ← Async.block <|
+    Client.spawnStdioClient
+      {
+        cmd := "lake",
+        args := #["exe", "stdio_client_server_test", "--sleep-forever"],
+        shutdownTimeoutMs? := some 20
+      }
+      .newline
+  let shutdownTask ← Async.block <| async client.shutdown
+  let finished ← waitForTaskFinish shutdownTask 250
+  assert finished "spawned stdio client fallback kill shutdown did not complete in time"
+  if finished then
+    Async.block <| await shutdownTask
+
 end LeanWorkerTest
