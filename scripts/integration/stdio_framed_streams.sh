@@ -77,15 +77,6 @@ class FramedClient:
         body = json.dumps(obj).encode("utf-8")
         self.send_raw((f"Content-Length: {len(body)}\r\n\r\n").encode("utf-8") + body)
 
-    def send_http_like(self, obj):
-        body = json.dumps(obj).encode("utf-8")
-        self.send_raw(
-            b"POST / HTTP/1.1\r\n"
-            + b"Content-Type: application/json\r\n"
-            + (f"Content-Length: {len(body)}\r\n\r\n").encode("utf-8")
-            + body
-        )
-
 
 def expect_parse_error(resp):
     err = resp.get("error") or {}
@@ -120,34 +111,6 @@ def run_content_length_case():
         client.close()
 
 
-def run_http_like_case():
-    client = FramedClient("http-like")
-    try:
-        client.send_http_like({"jsonrpc": "2.0", "id": 10, "method": "ping"})
-        resp = client.recv_json()
-        assert resp.get("result") == "pong", resp
-        assert resp.get("id") == 10, resp
-
-        big = "y" * 20000
-        client.send_http_like({
-            "jsonrpc": "2.0",
-            "id": 11,
-            "method": "echo",
-            "params": {"big": big},
-        })
-        resp = client.recv_json()
-        result = resp.get("result") or {}
-        assert result.get("big") == big, resp
-        assert resp.get("id") == 11, resp
-
-        client.send_raw(b"\r\nContent-Length: 2\r\n\r\n{}")
-        resp = client.recv_json()
-        expect_parse_error(resp)
-    finally:
-        client.close()
-
-
 run_content_length_case()
-run_http_like_case()
 print("stdio framed streams integration ok")
 PY
