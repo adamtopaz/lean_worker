@@ -32,29 +32,34 @@ private def shutdownChild
     (log : LogLevel → String → IO Unit)
     (timeoutMs? : Option Nat)
     (pollMs : UInt32 := 20)
-    (postKillTimeoutMs : Nat := 500) : Async Unit := do
+    (postKillTimeoutMs : Nat := 500) : Async (Except String Unit) := do
   match timeoutMs? with
   | none =>
     try
       let _ ← child.wait
-      return
-    catch _ =>
-      return
+      return .ok ()
+    catch err =>
+      let message := s!"child wait failed: {err}"
+      LeanWorker.Transport.logError log message
+      return .error message
   | some timeoutMs =>
     let pollNat := UInt32.toNat pollMs
     let polls := (timeoutMs + pollNat - 1) / pollNat
     let exited ← waitForExitGracefully child polls pollMs
     if exited then
-      return
+      return .ok ()
     else
       try
         child.kill
       catch _ =>
-        logError log "failed to send terminate signal to child process"
+        LeanWorker.Transport.logError log "failed to send terminate signal to child process"
       let postKillPolls := (postKillTimeoutMs + pollNat - 1) / pollNat
       let exitedAfterKill ← waitForExitGracefully child postKillPolls pollMs
       if !exitedAfterKill then
-        logError log s!"child process did not exit within {postKillTimeoutMs}ms after terminate"
+        let message := s!"child process did not exit within {postKillTimeoutMs}ms after terminate"
+        LeanWorker.Transport.logError log message
+        return .error message
+      return .ok ()
 
 structure SpawnConfig where
   cmd : String
@@ -86,27 +91,9 @@ def spawnStdioClientTransport
   let (stdinHandle, child) ← child.takeStdin
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
   let stdoutStream := IO.FS.Stream.ofHandle child.stdout
-  let shutdownAction : Async Unit := do
+  let shutdownAction : Async (Except String Unit) := do
     shutdownChild child log config.shutdownTimeoutMs?
-  clientTransportFromStreams
-    stdoutStream
-    stdinStream
-    frameSpec
-    log
-    shutdownAction
-
-def spawnStdioServerTransport
-    (config : SpawnConfig)
-    (frameSpec : FrameSpec := .newline)
-    (log : LogLevel → String → IO Unit := silentLogger) :
-    Async ServerTransport := do
-  let child ← IO.Process.spawn (spawnArgs config)
-  let (stdinHandle, child) ← child.takeStdin
-  let stdinStream := IO.FS.Stream.ofHandle stdinHandle
-  let stdoutStream := IO.FS.Stream.ofHandle child.stdout
-  let shutdownAction : Async Unit := do
-    shutdownChild child log config.shutdownTimeoutMs?
-  serverTransportFromStreams
+  LeanWorker.Transport.clientTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec

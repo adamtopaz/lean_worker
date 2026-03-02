@@ -9,13 +9,13 @@ structure ServerTransport where
   inbox : Std.CloseableChannel (Except JsonRpc.Error Lean.Json)
   outbox : Std.CloseableChannel Lean.Json
   log : LogLevel → String → IO Unit
-  shutdown : Async Unit
+  shutdown : Async (Except String Unit)
 
 structure ClientTransport where
   inbox : Std.CloseableChannel (Except JsonRpc.Error Lean.Json)
   outbox : Std.CloseableChannel Lean.Json
   log : LogLevel → String → IO Unit
-  shutdown : Async Unit
+  shutdown : Async (Except String Unit)
 ```
 
 ## Constructors
@@ -23,7 +23,6 @@ structure ClientTransport where
 - `Transport.serverTransportFromStreams`
 - `Transport.clientTransportFromStreams`
 - `Transport.spawnStdioClientTransport`
-- `Transport.spawnStdioServerTransport`
 
 These constructors apply framing + JSON decode/encode internally and expose JSON-level channels to server/client runtimes.
 

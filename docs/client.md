@@ -10,7 +10,7 @@ structure Client where
   notify : String → Option Json.Structured → EAsync Error Unit
   batch : Array (String × Option Json.Structured × Kind) →
     EAsync Error (Array (Option (Except Error Json)))
-  shutdown : Async Unit
+  shutdown : Async (Except String Unit)
 ```
 
 The client tracks pending requests via `Std.Mutex` + `IO.Promise` and resolves responses asynchronously.
@@ -67,3 +67,4 @@ def runBatch (client : Client.Client) : EAsync Error Unit := do
 ## Shutdown
 
 `Client.shutdown` closes the outbox, shuts down the transport, and resolves any pending promises with `Error.internalError`.
+It returns `Except String Unit` so callers can observe transport shutdown failures.

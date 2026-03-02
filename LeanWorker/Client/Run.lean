@@ -17,6 +17,20 @@ open Lean
 open JsonRpc
 open Std.Internal.IO.Async
 
+private partial def awaitTaskWithTimeout
+    (task : AsyncTask Unit)
+    (remainingPolls : Nat)
+    (pollMs : UInt32 := 20) : Async Bool := do
+  match remainingPolls with
+  | 0 =>
+    return false
+  | remainingPolls + 1 =>
+    if (← task.getState) == .finished then
+      await task
+      return true
+    IO.sleep pollMs
+    awaitTaskWithTimeout task remainingPolls pollMs
+
 def getClient
     (transport : LeanWorker.Transport.ClientTransport) : Async Client := do
   let nextId : Std.Mutex Nat ← Std.Mutex.new 0
@@ -141,9 +155,19 @@ def getClient
           | some (.error err) => return some (.error err)
           | none => return some (.error Error.internalError)
 
-  let shutdown : Async Unit := do
-    transport.shutdown
-    await readerTask
+  let shutdown : Async (Except String Unit) := do
+    let transportResult ← transport.shutdown
+    let readerDone ← awaitTaskWithTimeout readerTask 50
+    if readerDone then
+      return transportResult
+    else
+      let message := "client reader task did not finish during shutdown"
+      logError message
+      match transportResult with
+      | .ok _ =>
+        return .error message
+      | .error transportMessage =>
+        return .error s!"{transportMessage}; {message}"
 
   return { request, notify, batch, shutdown }
 

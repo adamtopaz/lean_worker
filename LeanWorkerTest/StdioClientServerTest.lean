@@ -78,7 +78,8 @@ def testSpawnStdioClientServerWithFraming
         s!"unexpected throw error message: {err.message}"
   finally
     try
-      Async.block client.shutdown
+      let _ ← Async.block client.shutdown
+      pure ()
     catch _ =>
       pure ()
 
@@ -89,7 +90,7 @@ def testSpawnStdioClientServerContentLength : IO Unit :=
   testSpawnStdioClientServerWithFraming "--serve-content-length" .contentLength
 
 private partial def waitForTaskFinish
-    (task : AsyncTask Unit)
+    (task : AsyncTask α)
     (remainingPolls : Nat) : IO Bool := do
   match remainingPolls with
   | 0 =>
@@ -113,7 +114,12 @@ def testSpawnStdioClientGracefulShutdownCompletes : IO Unit := do
   let finished ← waitForTaskFinish shutdownTask 200
   assert finished "spawned stdio client graceful shutdown did not complete in time"
   if finished then
-    Async.block <| await shutdownTask
+    let result ← Async.block <| await shutdownTask
+    match result with
+    | .ok _ =>
+      pure ()
+    | .error message =>
+      throw <| IO.userError s!"graceful shutdown failed: {message}"
 
 def testSpawnStdioClientShutdownFallbackKill : IO Unit := do
   let client ← Async.block <|
@@ -128,6 +134,53 @@ def testSpawnStdioClientShutdownFallbackKill : IO Unit := do
   let finished ← waitForTaskFinish shutdownTask 250
   assert finished "spawned stdio client fallback kill shutdown did not complete in time"
   if finished then
-    Async.block <| await shutdownTask
+    let result ← Async.block <| await shutdownTask
+    match result with
+    | .ok _ =>
+      pure ()
+    | .error message =>
+      throw <| IO.userError s!"fallback kill shutdown failed: {message}"
+
+def testTransportShutdownFailureDoesNotBlock : IO Unit := do
+  let cwd ← IO.currentDir
+  let child ← IO.Process.spawn {
+    cmd := "lake",
+    args := #["exe", "stdio_client_server_test", "--sleep-forever"],
+    cwd := some cwd,
+    stdin := .piped,
+    stdout := .piped,
+    stderr := .inherit
+  }
+  let (stdinHandle, child) ← child.takeStdin
+  let stdinStream := IO.FS.Stream.ofHandle stdinHandle
+  let stdoutStream := IO.FS.Stream.ofHandle child.stdout
+  let transport ← Async.block <|
+    Transport.clientTransportFromStreams
+      stdoutStream
+      stdinStream
+      .newline
+      Transport.silentLogger
+      (shutdownAction := do
+        try
+          child.kill
+        catch _ =>
+          pure ()
+        return .error "forced shutdown failure for test")
+  try
+    let shutdownTask ← Async.block <| async transport.shutdown
+    let finished ← waitForTaskFinish shutdownTask 100
+    assert finished "transport shutdown should return even when shutdownAction fails"
+    if finished then
+      let result ← Async.block <| await shutdownTask
+      match result with
+      | .error _ =>
+        pure ()
+      | .ok _ =>
+        throw <| IO.userError "transport shutdown should return an error on shutdownAction failure"
+  finally
+    try
+      child.kill
+    catch _ =>
+      pure ()
 
 end LeanWorkerTest

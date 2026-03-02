@@ -176,21 +176,32 @@ private partial def writeJsonLoop
   | none =>
     return
   | some json =>
-    try
-      writeFramedJson writeStream frameSpec json
-      writeJsonLoop writeStream frameSpec log outbox
-    catch err =>
-      LeanWorker.Transport.logError log s!"json write error: {err}"
+    writeFramedJson writeStream frameSpec json
+    writeJsonLoop writeStream frameSpec log outbox
+
+private partial def awaitTaskWithTimeout
+    (task : AsyncTask Unit)
+    (remainingPolls : Nat)
+    (pollMs : UInt32 := 20) : Async Bool := do
+  match remainingPolls with
+  | 0 =>
+    return false
+  | remainingPolls + 1 =>
+    if (← task.getState) == .finished then
+      await task
+      return true
+    IO.sleep pollMs
+    awaitTaskWithTimeout task remainingPolls pollMs
 
 private def transportFromStreamsCore
     (readStream writeStream : IO.FS.Stream)
     (frameSpec : FrameSpec)
     (log : LogLevel → String → IO Unit)
-    (shutdownAction : Async Unit := pure ()) :
+    (shutdownAction : Async (Except String Unit) := pure (.ok ())) :
     Async
       (Std.CloseableChannel (Except JsonRpc.Error Lean.Json) ×
         Std.CloseableChannel Lean.Json ×
-        Async Unit) := do
+        Async (Except String Unit)) := do
   let inbox : Std.CloseableChannel (Except JsonRpc.Error Lean.Json) ← Std.CloseableChannel.new
   let outbox : Std.CloseableChannel Lean.Json ← Std.CloseableChannel.new
   let readerTask : AsyncTask Unit ← async do
@@ -204,18 +215,37 @@ private def transportFromStreamsCore
       writeJsonLoop writeStream frameSpec log outbox
     catch err =>
       LeanWorker.Transport.logError log s!"json write task error: {err}"
-  let shutdown : Async Unit := do
+      LeanWorker.Transport.closeOrLog log "json outbox" outbox
+      LeanWorker.Transport.closeOrLog log "json inbox" inbox
+  let shutdown : Async (Except String Unit) := do
     LeanWorker.Transport.closeOrLog log "json outbox" outbox
-    shutdownAction
-    await writerTask
-    await readerTask
+    let writerDone ← awaitTaskWithTimeout writerTask 50
+    if !writerDone then
+      LeanWorker.Transport.logError log "writer task did not finish before shutdown action"
+    let shutdownResult ← shutdownAction
+    match shutdownResult with
+    | .ok _ =>
+      let readerDone ← awaitTaskWithTimeout readerTask 50
+      if readerDone then
+        return .ok ()
+      else
+        LeanWorker.Transport.logError log "reader task did not finish after successful shutdown"
+        LeanWorker.Transport.closeOrLog log "json inbox" inbox
+        return .error "reader task did not finish after successful shutdown"
+    | .error message =>
+      LeanWorker.Transport.logError log s!"shutdown action failed: {message}"
+      LeanWorker.Transport.closeOrLog log "json inbox" inbox
+      let readerDone ← awaitTaskWithTimeout readerTask 50
+      if !readerDone then
+        LeanWorker.Transport.logError log "reader task did not finish after failed shutdown"
+      return .error message
   return (inbox, outbox, shutdown)
 
 def serverTransportFromStreams
     (readStream writeStream : IO.FS.Stream)
     (frameSpec : FrameSpec)
     (log : LogLevel → String → IO Unit)
-    (shutdownAction : Async Unit := pure ()) :
+    (shutdownAction : Async (Except String Unit) := pure (.ok ())) :
     Async ServerTransport := do
   let (inbox, outbox, shutdown) ←
     transportFromStreamsCore readStream writeStream frameSpec log shutdownAction
@@ -225,7 +255,7 @@ def clientTransportFromStreams
     (readStream writeStream : IO.FS.Stream)
     (frameSpec : FrameSpec)
     (log : LogLevel → String → IO Unit)
-    (shutdownAction : Async Unit := pure ()) :
+    (shutdownAction : Async (Except String Unit) := pure (.ok ())) :
     Async ClientTransport := do
   let (inbox, outbox, shutdown) ←
     transportFromStreamsCore readStream writeStream frameSpec log shutdownAction

@@ -24,13 +24,13 @@ structure ServerTransport where
   inbox : Std.CloseableChannel (Except Error Lean.Json)
   outbox : Std.CloseableChannel Lean.Json
   log : LogLevel → String → IO Unit
-  shutdown : Async Unit
+  shutdown : Async (Except String Unit)
 
 structure ClientTransport where
   inbox : Std.CloseableChannel (Except Error Lean.Json)
   outbox : Std.CloseableChannel Lean.Json
   log : LogLevel → String → IO Unit
-  shutdown : Async Unit
+  shutdown : Async (Except String Unit)
 
 end Transport
 end LeanWorker

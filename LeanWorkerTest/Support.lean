@@ -69,7 +69,8 @@ def spawnManagedClient : IO ManagedClient := do
 def shutdownManagedClient (client : ManagedClient) : IO Unit := do
   client.child.kill
   try
-    Async.block client.client.shutdown
+    let _ ← Async.block client.client.shutdown
+    pure ()
   catch _ =>
     pure ()
 
