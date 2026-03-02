@@ -13,30 +13,6 @@ lean_lib LeanWorker
 lean_lib LeanWorkerTest where
   globs := #[Glob.submodules `LeanWorkerTest]
 
-@[default_target]
-lean_exe "lean_worker" where
-  root := `Main
-
-@[default_target]
-lean_exe "test_server" where
-  root := `LeanWorkerTest.TestServer
-
-@[default_target]
-lean_exe "test_client" where
-  root := `LeanWorkerTest.TestClient
-
-@[default_target]
-lean_exe "run_tests" where
-  root := `LeanWorkerTest.Main
-
-@[default_target]
-lean_exe "full_server" where
-  root := `LeanWorkerTest.FullServerCli
-
-@[default_target]
-lean_exe "stdio_client_server_test" where
-  root := `LeanWorkerTest.StdioClientServer
-
 module_facet module_metadata mod : Json := do
   let olean ← (← mod.olean.fetch).await
   let (data, _) ← Lean.readModuleData olean

@@ -4,7 +4,6 @@ public import LeanWorker.Client.Types
 public import LeanWorker.Transport.Logging
 public import LeanWorker.JsonRpc.Parse
 public import LeanWorker.JsonRpc.Encoding
-public import LeanWorker.Transport.Spawn
 public import Std.Data.HashMap
 public import Std.Sync.Mutex
 
@@ -36,13 +35,24 @@ private partial def awaitTaskWithTimeout
       awaitTaskWithTimeout task remainingPolls pollMs
 
 def getClient
-    (transport : LeanWorker.Transport.ClientTransport) : Async Client := do
+    (transport : LeanWorker.Transport.Transport) : Async Client := do
   let nextId : Std.Mutex Nat ← Std.Mutex.new 0
   let pending : Std.Mutex (Std.HashMap RpcId (IO.Promise (Except Error Json))) ←
     Std.Mutex.new {}
 
   let logError (message : String) : Async Unit :=
     LeanWorker.Transport.logError transport.log message
+
+  let internalError : String → Error :=
+    Error.withMessage Error.internalError
+
+  let resolveAllPending (err : Error) : Async Unit := do
+    let pendingEntries ← pending.atomically do
+      let entries := (← get).toList
+      set ({} : Std.HashMap RpcId (IO.Promise (Except Error Json)))
+      return entries
+    for (_, promise) in pendingEntries do
+      promise.resolve (.error err)
 
   let responseId : Response → RpcId
     | .result id _ => id
@@ -88,12 +98,7 @@ def getClient
     catch err =>
       logError s!"client reader task crashed: {err}"
     finally
-      let pendingEntries ← pending.atomically do
-        let entries := (← get).toList
-        set ({} : Std.HashMap RpcId (IO.Promise (Except Error Json)))
-        return entries
-      for (_, promise) in pendingEntries do
-        promise.resolve (.error Error.internalError)
+      resolveAllPending (internalError "client reader stopped before response was received")
 
   let getNextId : BaseIO RpcId := nextId.atomically do
     let current ← get
@@ -103,7 +108,7 @@ def getClient
   let sendJson (json : Json) : EAsync Error Unit := do
     match ← await <| ← transport.outbox.send json with
     | .ok _ => return
-    | .error _ => throw Error.internalError
+    | .error _ => throw (internalError "client outbox send failed")
 
   let request : String → Option Json.Structured → EAsync Error Json := fun method params? => do
     let id ← getNextId
@@ -113,12 +118,12 @@ def getClient
     match ← await <| ← transport.outbox.send payload with
     | .error _ =>
       pending.atomically <| modify fun entries => entries.erase id
-      throw Error.internalError
+      throw (internalError "request send failed")
     | .ok _ =>
       match ← await promise.result? with
       | some (.ok result) => return result
       | some (.error err) => throw err
-      | none => throw Error.internalError
+      | none => throw (internalError "connection closed while awaiting response")
 
   let notify : String → Option Json.Structured → EAsync Error Unit := fun method params? => do
     let payload : Json := toJson ({ method := method, params? := params? } : Notification)
@@ -152,7 +157,7 @@ def getClient
             modify fun entries => entries.erase id
           | none =>
             pure ()
-      throw Error.internalError
+      throw (internalError "batch send failed")
     | .ok _ =>
       promises.mapM fun item => do
         match item with
@@ -161,50 +166,22 @@ def getClient
           match ← await promise.result? with
           | some (.ok result) => return some (.ok result)
           | some (.error err) => return some (.error err)
-          | none => return some (.error Error.internalError)
+          | none =>
+            return some (.error (internalError "connection closed while awaiting batch response"))
 
-  let shutdown : Async (Except String Unit) := do
-    let transportResult ←
-      try
-        transport.shutdown
-      catch err =>
-        pure (.error s!"transport shutdown threw exception: {err}")
-    let readerError? ←
-      match ← awaitTaskWithTimeout readerTask 50 with
-      | .ok true =>
-        pure none
-      | .ok false =>
-        let message := "client reader task did not finish during shutdown"
-        logError message
-        pure (some message)
-      | .error err =>
-        let message := s!"client reader task failed during shutdown: {err}"
-        logError message
-        pure (some message)
-    let mut errors : Array String := #[]
-    match transportResult with
-    | .ok _ =>
+  let shutdown : Async Unit := do
+    LeanWorker.Transport.closeOrLog transport.log "client outbox" transport.outbox
+    LeanWorker.Transport.closeOrLog transport.log "client inbox" transport.inbox
+    match ← awaitTaskWithTimeout readerTask 50 with
+    | .ok true =>
       pure ()
-    | .error message =>
-      errors := errors.push message
-    match readerError? with
-    | some message =>
-      errors := errors.push message
-    | none =>
-      pure ()
-    if errors.isEmpty then
-      return .ok ()
-    else
-      return .error (String.intercalate "; " errors.toList)
+    | .ok false =>
+      logError "client reader task did not finish during shutdown"
+    | .error err =>
+      logError s!"client reader task failed during shutdown: {err}"
+    resolveAllPending (internalError "client shutdown before response was received")
 
   return { request, notify, batch, shutdown }
-
-def spawnStdioClient
-    (config : Transport.SpawnConfig)
-    (frameSpec : Transport.FrameSpec := .newline) : Async Client := do
-  let log ← Transport.stderrLogger "CLIENT"
-  let transport ← Transport.spawnStdioClientTransport config frameSpec (log := log)
-  getClient transport
 
 end Client
 end LeanWorker

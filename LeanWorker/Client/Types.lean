@@ -21,7 +21,7 @@ structure Client where
   notify : String → Option Json.Structured → EAsync Error Unit
   batch : Array (String × Option Json.Structured × Kind) →
     EAsync Error (Array <| Option <| Except Error Json)
-  shutdown : Async (Except String Unit)
+  shutdown : Async Unit
 
 end Client
 end LeanWorker
