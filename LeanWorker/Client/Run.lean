@@ -77,19 +77,23 @@ def getClient
         logError s!"invalid response: {message}"
 
   let readerTask : AsyncTask Unit ← async do
-    repeat
-      match ← await <| ← transport.inbox.recv with
-      | none => break
-      | some (.error err) =>
-        logError s!"transport error: {LeanWorker.Transport.errorToString err}"
-      | some (.ok json) =>
-        resolveJson json
-    let pendingEntries ← pending.atomically do
-      let entries := (← get).toList
-      set ({} : Std.HashMap RpcId (IO.Promise (Except Error Json)))
-      return entries
-    for (_, promise) in pendingEntries do
-      promise.resolve (.error Error.internalError)
+    try
+      repeat
+        match ← await <| ← transport.inbox.recv with
+        | none => break
+        | some (.error err) =>
+          logError s!"transport error: {LeanWorker.Transport.errorToString err}"
+        | some (.ok json) =>
+          resolveJson json
+    catch err =>
+      logError s!"client reader task crashed: {err}"
+    finally
+      let pendingEntries ← pending.atomically do
+        let entries := (← get).toList
+        set ({} : Std.HashMap RpcId (IO.Promise (Except Error Json)))
+        return entries
+      for (_, promise) in pendingEntries do
+        promise.resolve (.error Error.internalError)
 
   let getNextId : BaseIO RpcId := nextId.atomically do
     let current ← get

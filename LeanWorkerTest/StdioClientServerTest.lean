@@ -183,4 +183,111 @@ def testTransportShutdownFailureDoesNotBlock : IO Unit := do
     catch _ =>
       pure ()
 
+def testClientShutdownCatchesTransportException : IO Unit := do
+  let inbox : Std.CloseableChannel (Except Error Json) ← Std.CloseableChannel.new
+  let outbox : Std.CloseableChannel Json ← Std.CloseableChannel.new
+  let transport : Transport.ClientTransport :=
+    {
+      inbox := inbox,
+      outbox := outbox,
+      log := Transport.silentLogger,
+      shutdown := do
+        let _ ← inbox.close.toBaseIO
+        throw <| IO.userError "forced transport shutdown exception"
+    }
+  let client ← Async.block <| Client.getClient transport
+  let result ← Async.block client.shutdown
+  match result with
+  | .ok _ =>
+    throw <| IO.userError "client shutdown should return an error when transport shutdown throws"
+  | .error message =>
+    assert (message.startsWith "transport shutdown threw exception:")
+      s!"unexpected shutdown error message: {message}"
+
+def testTransportWriterTimeoutReturnsError : IO Unit := do
+  let readStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => pure (),
+      getLine := pure "",
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let writeStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => IO.sleep 1500,
+      getLine := pure "",
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let transport ← Async.block <|
+    Transport.clientTransportFromStreams
+      readStream
+      writeStream
+      .newline
+      Transport.silentLogger
+      (shutdownAction := pure (.ok ()))
+  match ← Async.block <| await <| ← transport.outbox.send (Json.str "trigger writer") with
+  | .ok _ =>
+    pure ()
+  | .error err =>
+    throw <| IO.userError s!"failed to enqueue payload for writer-timeout test: {err}"
+  let shutdownTask ← Async.block <| async transport.shutdown
+  let finished ← waitForTaskFinish shutdownTask 200
+  assert finished "transport shutdown should complete when writer timeout occurs"
+  if finished then
+    let result ← Async.block <| await shutdownTask
+    match result with
+    | .error message =>
+      assert (message.startsWith "writer task did not finish before shutdown action")
+        s!"unexpected writer-timeout shutdown message: {message}"
+    | .ok _ =>
+      throw <| IO.userError "expected transport shutdown to return error on writer timeout"
+
+def testTransportWriterTimeoutStillRunsShutdownAction : IO Unit := do
+  let shutdownRan : Std.Mutex Bool ← Std.Mutex.new false
+  let readStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => pure (),
+      getLine := pure "",
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let writeStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => IO.sleep 1500,
+      getLine := pure "",
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let transport ← Async.block <|
+    Transport.clientTransportFromStreams
+      readStream
+      writeStream
+      .newline
+      Transport.silentLogger
+      (shutdownAction := do
+        shutdownRan.atomically <| set true
+        return .ok ())
+  match ← Async.block <| await <| ← transport.outbox.send (Json.str "trigger writer") with
+  | .ok _ =>
+    pure ()
+  | .error err =>
+    throw <| IO.userError s!"failed to enqueue payload for writer-timeout shutdownAction test: {err}"
+  let result ← Async.block transport.shutdown
+  match result with
+  | .error _ =>
+    pure ()
+  | .ok _ =>
+    throw <| IO.userError "expected transport shutdown to return error on writer timeout"
+  let ran ← shutdownRan.atomically get
+  assert ran "shutdownAction should still run when writer shutdown fails"
+
 end LeanWorkerTest

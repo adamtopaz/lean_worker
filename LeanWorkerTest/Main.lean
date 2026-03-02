@@ -17,6 +17,9 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "spawn stdio client graceful shutdown" LeanWorkerTest.testSpawnStdioClientGracefulShutdownCompletes
   LeanWorkerTest.runTest "spawn stdio client fallback kill shutdown" LeanWorkerTest.testSpawnStdioClientShutdownFallbackKill
   LeanWorkerTest.runTest "transport shutdown failure does not block" LeanWorkerTest.testTransportShutdownFailureDoesNotBlock
+  LeanWorkerTest.runTest "client shutdown catches transport exception" LeanWorkerTest.testClientShutdownCatchesTransportException
+  LeanWorkerTest.runTest "transport writer timeout returns error" LeanWorkerTest.testTransportWriterTimeoutReturnsError
+  LeanWorkerTest.runTest "transport writer timeout still runs shutdown action" LeanWorkerTest.testTransportWriterTimeoutStillRunsShutdownAction
   LeanWorkerTest.runTest "newline framing round trip" LeanWorkerTest.testNewlineFramingRoundTrip
   LeanWorkerTest.runTest "newline framing multiple" LeanWorkerTest.testNewlineFramingMultipleFrames
   LeanWorkerTest.runTest "newline framing partial" LeanWorkerTest.testNewlineFramingPartialFrame

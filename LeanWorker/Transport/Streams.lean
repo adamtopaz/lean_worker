@@ -197,6 +197,24 @@ private partial def awaitTaskWithTimeout
       IO.sleep pollMs
       awaitTaskWithTimeout task remainingPolls pollMs
 
+private partial def awaitTaskResultWithTimeout
+    (task : AsyncTask α)
+    (remainingPolls : Nat)
+    (pollMs : UInt32 := 20) : Async (Except String (Option α)) := do
+  match remainingPolls with
+  | 0 =>
+    return .ok none
+  | remainingPolls + 1 =>
+    if (← task.getState) == .finished then
+      try
+        let result ← await task
+        return .ok (some result)
+      catch err =>
+        return .error s!"task failed while awaiting completion: {err}"
+    else
+      IO.sleep pollMs
+      awaitTaskResultWithTimeout task remainingPolls pollMs
+
 private def transportFromStreamsCore
     (readStream writeStream : IO.FS.Stream)
     (frameSpec : FrameSpec)
@@ -235,11 +253,29 @@ private def transportFromStreamsCore
         let message := s!"writer task failed during shutdown: {err}"
         LeanWorker.Transport.logError log message
         pure (some message)
-    let shutdownResult ← shutdownAction
+    if writerError?.isSome then
+      LeanWorker.Transport.closeOrLog log "json inbox" inbox
+    let shutdownResult? ←
+      match writerError? with
+      | none =>
+        pure (some (← shutdownAction))
+      | some _ =>
+        let shutdownTask : AsyncTask (Except String Unit) ← async shutdownAction
+        match ← awaitTaskResultWithTimeout shutdownTask 25 with
+        | .ok (some result) =>
+          pure (some result)
+        | .ok none =>
+          let message := "shutdown action did not finish in degraded shutdown"
+          LeanWorker.Transport.logError log message
+          pure (some (.error message))
+        | .error err =>
+          let message := s!"shutdown action task failed during degraded shutdown: {err}"
+          LeanWorker.Transport.logError log message
+          pure (some (.error message))
     let shutdownError? :=
-      match shutdownResult with
-      | .ok _ => none
-      | .error message => some message
+      match shutdownResult? with
+      | some (.error message) => some message
+      | _ => none
     if writerError?.isSome || shutdownError?.isSome then
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
     let readerError? ←
@@ -260,12 +296,14 @@ private def transportFromStreamsCore
       errors := errors.push message
     | none =>
       pure ()
-    match shutdownResult with
-    | .ok _ =>
+    match shutdownResult? with
+    | some (.ok _) =>
       pure ()
-    | .error message =>
+    | some (.error message) =>
       LeanWorker.Transport.logError log s!"shutdown action failed: {message}"
       errors := errors.push message
+    | none =>
+      pure ()
     match readerError? with
     | some message =>
       errors := errors.push message

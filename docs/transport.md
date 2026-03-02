@@ -33,3 +33,4 @@ These constructors apply framing + JSON decode/encode internally and expose JSON
 - No TCP transport support in this repository at the moment.
 - `shutdown` returns `Except String Unit` and should be treated as the authoritative shutdown result.
 - `Transport.SpawnConfig.shutdownTimeoutMs? = none` means an unbounded graceful child wait and may block forever if the child never exits.
+- If writer shutdown fails, the transport still attempts `shutdownAction` in a degraded bounded path so cleanup can run without letting shutdown block indefinitely.
