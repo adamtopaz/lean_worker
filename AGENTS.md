@@ -5,64 +5,50 @@ Use this file as the single source of truth for build/test and style conventions
 Prefer minimal, targeted edits and keep formatting consistent with existing Lean code.
 
 ## Project Overview
-- Language: Lean 4 (see lean-toolchain)
+- Language: Lean 4 (see `lean-toolchain`, currently `leanprover/lean4:v4.28.0`)
 - Build system: Lake (`lakefile.lean`, `lake-manifest.json`)
-- Libraries: LeanWorker, LeanWorkerTest
-- Executables: lean_worker (Main.lean), test_server (LeanWorkerTest.TestServer),
-  test_client (LeanWorkerTest.TestClient), run_tests (LeanWorkerTest.Main),
-  full_server (LeanWorkerTest.FullServerCli)
-- CI: GitHub Actions with lean-action (default build)
+- Libraries: `LeanWorker`, `LeanWorkerTest`
+- Executables: none currently declared in `lakefile.lean`
+- CI: GitHub Actions with `leanprover/lean-action` + `lake build`
 
 ## Build, Lint, Test
 
 ### Prerequisites
-- Install Lean via elan and respect lean-toolchain (Lean 4.27.0).
-- Use `lake` for all builds; avoid hand-running `lean` without `lake env`.
+- Install Lean via elan and respect `lean-toolchain`.
+- Use `lake` for all builds; avoid running `lean` directly without `lake env`.
 - Fetch deps once: `lake update`
 
 ### Build
 - Build everything: `lake build`
-- Build the executable: `lake build lean_worker`
-- Build the main library: `lake build LeanWorker`
-- Build test library: `lake build LeanWorkerTest`
-- Build test server: `lake build test_server`
-- Build test client: `lake build test_client`
-- Build test runner: `lake build run_tests`
-- Build full server CLI: `lake build full_server`
+- Build main library: `lake build LeanWorker`
+- Build test library target: `lake build LeanWorkerTest`
 
 ### Run
-- Run the executable: `lake exe lean_worker`
-- Run the test suite: `lake exe run_tests`
-- Run the full server CLI: `lake exe full_server -- --transport stdio --framing newline`
+- No `lake exe` targets are currently defined.
 
 ### Lint
 - No standalone linter configured.
-- Treat `lake build` as the compile/lint signal and fix any warnings.
+- Treat `lake build` as compile/lint signal and fix warnings.
 
 ### Tests
-- Tests live as Lean modules under `LeanWorkerTest`.
-- Run all tests: `lake exe run_tests`
-- Typecheck tests only: `lake build LeanWorkerTest`
+- There is currently no runtime test executable in this repo.
+- Use compile checks:
+  - `lake build`
+  - `lake build LeanWorkerTest`
 
-### Integration
-- Run integration scripts: `scripts/integration/run.sh`
-- Requirements: `python` or `python3`, plus `curl` for HTTP-like tests.
-
-### Single Test / Single File
-- Fast check a single file: `lake env lean LeanWorkerTest/TestServer.lean`
-- Fast check a library module: `lake build LeanWorkerTest` (or `LeanWorker`)
-- If you add a new test module, update `lakefile.lean` targets/imports if needed.
+### Single File / Fast Check
+- Typecheck one file quickly: `lake env lean LeanWorker/JsonRpc/Core.lean`
+- Typecheck one library target: `lake build LeanWorker` (or `LeanWorkerTest`)
 
 ### CI
-- GitHub Actions uses `leanprover/lean-action` (defaults to `lake build`).
-- Keep local commands aligned with CI.
+- Keep local verification aligned with CI:
+  - `lake build`
 
 ## Repo Layout
-- `Main.lean` defines the `lean_worker` entry point.
-- `LeanWorker/` contains JSON-RPC core, transport, framing, async loops, client, and server.
-- `LeanWorkerTest/` contains test server, client harness, and support utilities.
-- `LeanWorkerTest/FullServer*.lean` contains the expanded test server and CLI entrypoint.
-- `scripts/integration/` contains integration test harness scripts.
+- `LeanWorker/` contains JSON-RPC core, parsing/encoding, framing, transport, client, and server modules.
+- `LeanWorker.lean` re-exports the public LeanWorker API.
+- `LeanWorkerTest/` is present as a Lake library target and currently contains no committed modules.
+- `.github/workflows/lean_action_ci.yml` defines CI.
 - `opencode.json` configures LSP (`lake serve`).
 
 ## Tooling
@@ -72,7 +58,7 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 
 ## Dependency Management
 - Add new deps in `lakefile.lean` and run `lake update`.
-- Commit the updated `lake-manifest.json` when deps change.
+- Commit updated `lake-manifest.json` when deps change.
 - Do not edit `lake-manifest.json` by hand.
 - Keep `lean-toolchain` pinned unless intentionally upgrading Lean.
 
@@ -82,7 +68,7 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 - Match existing structure: `module` line, blank line, imports, `public section`, namespaces, then definitions.
 - Keep files small and focused; prefer new modules over huge files.
 - Close namespaces explicitly with `end <Name>`.
-- Keep `namespace` nesting shallow and aligned with folder/module names.
+- Keep namespace nesting shallow and aligned with folder/module names.
 
 ### Imports
 - Put `import` or `public import` statements at the top after `module`.
@@ -95,22 +81,20 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 - Align `match` arms with `|` and keep patterns on one line when possible.
 - Use spaces around `:` and `:=` and after commas.
 - Prefer `<|` and `|>` for readability in nested calls, as in `LeanWorker/Common.lean`.
-- Keep line length reasonable; break long expressions across lines rather than chaining deeply.
-- Keep blank lines between major sections (imports, namespaces, large defs).
+- Keep line length reasonable; break long expressions across lines.
+- Keep blank lines between major sections.
 
 ### Naming
 - Types/structures/inductives: `PascalCase` (e.g., `RpcId`, `Transport`).
-- Functions/defs/values: `lowerCamel` (e.g., `messageFromJson`, `getClient`).
+- Functions/defs/values: `lowerCamel` (e.g., `parseMessage`, `logError`).
 - Namespaces: `PascalCase` matching file/module names.
 - Use `?` suffix for partial/optional results (`fromJson?`, `data?`).
-- Use descriptive abbreviations only when common (`ctx`, `params`, `kvs`).
-- Prefer verb names for effects (`sendLog`, `resolveMessage`).
 
 ### Types and Abbrevs
 - Use `structure` for data shapes and `inductive` for sum types.
-- Prefer `abbrev` for simple aliases (see `StatefulHandlerM`).
-- Keep explicit type signatures on public API and key helpers.
-- Use `Option` for optional fields and store absence as `none`.
+- Prefer `abbrev` for simple aliases.
+- Keep explicit type signatures on public APIs and key helpers.
+- Use `Option` for optional fields and represent absence as `none`.
 
 ### Pattern Matching
 - Exhaustively handle `Option` and `Except` cases.
@@ -118,45 +102,30 @@ Prefer minimal, targeted edits and keep formatting consistent with existing Lean
 - Use `if let` only for simple single-branch checks.
 
 ### Error Handling
-- Use domain errors (`LeanWorker.JsonRpc.Error`) rather than stringly-typed exceptions.
-- For JSON parsing, use `FromJson` / `FromStructured` instances and return `Except String _`.
-- Use `throw .invalidParams` for bad inputs and map parse errors to `Error.parseError`.
-- Avoid throwing raw strings in core logic; wrap in structured error types.
-- Log channel/transport errors via `Transport.log`, not `IO.println`.
+- Use domain errors (`LeanWorker.JsonRpc.Error`) rather than stringly exceptions.
+- For JSON parsing, use `FromJson` / `FromStructured` and return structured errors.
+- Avoid `IO.println` for operational errors; use transport logging.
 
 ### JSON and Serialization
 - Implement both `ToJson` and `FromJson` when a type crosses the wire.
-- Use `Json.Structured` for typed params and keep `Option` for optional params.
-- Keep JSON keys stable and documented when changing request/response shapes.
-- Use `json% { ... }` syntax for concise JSON literals.
+- Use `Json.Structured` for structured params and `Option` for optional fields.
+- Keep JSON keys stable when changing request/response shapes.
 
 ### Async and Concurrency
-- Use `Async`, `BaseAsync`, and `AsyncTask` consistently; `await` each task.
-- Use `Mutex` for shared state (`State` in server handlers).
-- Close channels gracefully; log channel errors via `Transport.log`.
-- Resolve pending promises on shutdown to avoid leaks.
+- Use `Async`, `EAsync`, and `AsyncTask` consistently; await spawned tasks.
+- Use `Mutex` for shared mutable state where needed.
+- Close channels gracefully and resolve pending promises on shutdown.
 
 ### IO and Logging
-- Use `Transport.log` for operational messages; keep stdout for JSON-RPC payloads.
-- Flush streams after writes when interacting with stdio transports.
-- Avoid long-running blocking calls in async loops; prefer `IO.sleep` for waits.
-
-### State and Effects
-- Use `ReaderT` for context and `StateRefT` for mutable state, as in `Server`.
-- Keep handler signatures explicit about effects (`EIO Error`, `BaseIO`).
-- When updating state, use `set` and return updated values explicitly.
+- Use transport logging for operational messages.
+- Keep protocol payloads separate from operational logs.
+- Flush streams when interacting with stdio transports.
 
 ### Public API
 - Re-export shared modules in `LeanWorker.lean` using `public import`.
-- Keep `public section` minimal; private helpers can remain local.
-- If you change a public type, update any `ToJson` / `FromJson` instances.
-
-### Tests and Examples
-- `LeanWorkerTest` modules should be deterministic and fast to typecheck.
-- Prefer small handler examples with explicit `FromStructured` instances.
-- Keep fixtures focused on JSON-RPC behavior, not integration.
-- Add new test modules under `LeanWorkerTest/` and keep them importable.
+- Keep `public section` minimal.
+- If a public wire type changes, update associated `ToJson` / `FromJson` instances.
 
 ## Cursor/Copilot Rules
-- No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` found.
+- No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` are present.
 - If such files are added later, follow them in preference to this document.

@@ -12,9 +12,5 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: leanprover/lean-action@v1
-      - name: Run integration suite
-        run: scripts/integration/run.sh
-      - name: Build test server
-        run: lake build test_server
-      - name: Run Lean test suite
-        run: lake exe run_tests
+      - name: Build with Lake
+        run: lake build
