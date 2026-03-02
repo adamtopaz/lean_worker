@@ -3,6 +3,7 @@ module
 public import Lean
 public import Std.Sync.Channel
 public import Std.Internal.Async.Basic
+public import LeanWorker.JsonRpc.Core
 
 public section
 
@@ -10,6 +11,7 @@ namespace LeanWorker
 namespace Transport
 
 open Std.Internal.IO.Async
+open JsonRpc
 
 inductive LogLevel where
   | debug
@@ -18,9 +20,15 @@ inductive LogLevel where
   | error
 deriving BEq, Repr, Inhabited
 
-structure Transport (Incoming Outgoing : Type) where
-  inbox : Std.CloseableChannel Incoming
-  outbox : Std.CloseableChannel Outgoing
+structure ServerTransport where
+  inbox : Std.CloseableChannel (Except Error Lean.Json)
+  outbox : Std.CloseableChannel Lean.Json
+  log : LogLevel → String → IO Unit
+  shutdown : Async Unit
+
+structure ClientTransport where
+  inbox : Std.CloseableChannel (Except Error Lean.Json)
+  outbox : Std.CloseableChannel Lean.Json
   log : LogLevel → String → IO Unit
   shutdown : Async Unit
 

@@ -1,11 +1,10 @@
 module
 
 public import LeanWorker.Client.Types
-public import LeanWorker.Async.Loops
+public import LeanWorker.Transport.Logging
 public import LeanWorker.JsonRpc.Parse
 public import LeanWorker.JsonRpc.Encoding
 public import LeanWorker.Transport.Spawn
-public import LeanWorker.Transport.Logging
 public import Std.Data.HashMap
 public import Std.Sync.Mutex
 
@@ -19,13 +18,13 @@ open JsonRpc
 open Std.Internal.IO.Async
 
 def getClient
-    (transport : Transport.Transport (Except Error Json) Json) : Async Client := do
+    (transport : LeanWorker.Transport.ClientTransport) : Async Client := do
   let nextId : Std.Mutex Nat ← Std.Mutex.new 0
   let pending : Std.Mutex (Std.HashMap RpcId (IO.Promise (Except Error Json))) ←
     Std.Mutex.new {}
 
   let logError (message : String) : Async Unit :=
-    LeanWorker.Async.logError transport.log message
+    LeanWorker.Transport.logError transport.log message
 
   let responseId : Response → RpcId
     | .result id _ => id
@@ -64,7 +63,7 @@ def getClient
       match ← await <| ← transport.inbox.recv with
       | none => break
       | some (.error err) =>
-        logError s!"transport error: {LeanWorker.Async.errorToString err}"
+        logError s!"transport error: {LeanWorker.Transport.errorToString err}"
       | some (.ok json) =>
         resolveJson json
     let pendingEntries ← pending.atomically do
@@ -143,7 +142,7 @@ def getClient
           | none => return some (.error Error.internalError)
 
   let shutdown : Async Unit := do
-    LeanWorker.Async.closeOrLog transport.log "client outbox" transport.outbox
+    LeanWorker.Transport.closeOrLog transport.log "client outbox" transport.outbox
     transport.shutdown
     await readerTask
 
@@ -153,7 +152,7 @@ def spawnStdioClient
     (config : Transport.SpawnConfig)
     (frameSpec : Transport.FrameSpec := .newline) : Async Client := do
   let log ← Transport.stderrLogger "CLIENT"
-  let transport ← Transport.spawnStdioTransport config frameSpec (log := log)
+  let transport ← Transport.spawnStdioClientTransport config frameSpec (log := log)
   getClient transport
 
 end Client

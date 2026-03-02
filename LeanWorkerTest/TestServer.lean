@@ -17,7 +17,7 @@ def runServer : IO Unit := do
   let stdout ← IO.getStdout
   let log ← LeanWorker.Transport.stderrLogger "SERVER"
   let transport ← Async.block <|
-    LeanWorker.Transport.jsonTransportFromStreams stdin stdout .newline log
+    LeanWorker.Transport.serverTransportFromStreams stdin stdout .newline log
   let state ← Std.Mutex.new FullServer.defaultState
   Async.block <| FullServer.run transport (state := state)
 

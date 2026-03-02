@@ -11,6 +11,16 @@ open Lean
 open LeanWorker
 open LeanWorker.JsonRpc
 
+def decodeJsonPayload (payload : ByteArray) : Except Error Json := do
+  let text ←
+    match String.fromUTF8? payload with
+    | some text => Except.ok text
+    | none => throw <| Error.withData Error.parseError (Lean.Json.str "invalid UTF-8 in JSON payload")
+  parseJson text
+
+def encodeJsonPayload (json : Json) : ByteArray :=
+  (Lean.Json.compress json).toUTF8
+
 def expectParseError (result : Except Error α) : IO Unit :=
   match result with
   | .ok _ =>
@@ -76,52 +86,17 @@ def testContentLengthFramingMissingHeader : IO Unit := do
   let wire := "X-Test: 1\r\n\r\n{}".toUTF8
   expectParseError (Framing.decodeContentLengthBytes wire)
 
-def testHttpLikeFramingRoundTrip : IO Unit := do
-  let payload := "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"ok\"}".toUTF8
-  let wire := Framing.encodeHttpLikeBytes {} payload
-  match Framing.decodeHttpLikeBytes wire with
-  | .ok (payloads, rest) =>
-    assert (payloads == #[payload]) "http-like framing failed to round-trip payload"
-    assert (rest.size == 0) "http-like framing left unexpected remainder"
-  | .error err =>
-    throw <| IO.userError s!"http-like decode failed: {err.code}"
-
-def testHttpLikeFramingMissingStartLine : IO Unit := do
-  let wire := "\r\nContent-Length: 2\r\n\r\n{}".toUTF8
-  expectParseError (Framing.decodeHttpLikeBytes wire)
-
-def testJsonCodecRoundTrip : IO Unit := do
-  let json := Json.mkObj [
-    ("name", Json.str "codec"),
-    ("count", Json.num 3),
-    ("ok", Json.bool true)
-  ]
-  let payload := JsonRpc.jsonCodec.encode json
-  match JsonRpc.jsonCodec.decode payload with
-  | .ok decoded =>
-    assert (decoded == json) "json codec failed to round-trip json payload"
-  | .error err =>
-    throw <| IO.userError s!"json codec decode failed: {err.code}"
-
-def testJsonCodecInvalidUtf8 : IO Unit := do
-  let invalid : ByteArray := ByteArray.mk #[0xFF, 0xFE]
-  expectParseError (JsonRpc.jsonCodec.decode invalid)
-
-def testJsonCodecInvalidJson : IO Unit := do
-  let invalid := "{bad json".toUTF8
-  expectParseError (JsonRpc.jsonCodec.decode invalid)
-
 def testContentLengthFramingWithJsonCodec : IO Unit := do
   let j1 := Json.mkObj [("kind", Json.str "one")]
   let j2 := Json.mkObj [("kind", Json.str "two")]
-  let p1 := JsonRpc.jsonCodec.encode j1
-  let p2 := JsonRpc.jsonCodec.encode j2
+  let p1 := encodeJsonPayload j1
+  let p2 := encodeJsonPayload j2
   let wire := Framing.encodeContentLengthBytes p1 ++ Framing.encodeContentLengthBytes p2
   match Framing.decodeContentLengthBytes wire with
   | .ok (payloads, rest) =>
     assert (rest.size == 0) "content-length/json codec test left unexpected remainder"
     let decoded ←
-      match payloads.mapM JsonRpc.jsonCodec.decode with
+      match payloads.mapM decodeJsonPayload with
       | .ok values => pure values
       | .error err => throw <| IO.userError s!"json codec decode failed: {err.code}"
     assert (decoded == #[j1, j2]) "content-length/json codec decode mismatch"
@@ -135,7 +110,7 @@ def testContentLengthFramingWithJsonCodecInvalidPayload : IO Unit := do
     throw <| IO.userError s!"unexpected framing error: {err.code}"
   | .ok (payloads, rest) =>
     assert (rest.size == 0) "invalid payload test left unexpected remainder"
-    match payloads.mapM JsonRpc.jsonCodec.decode with
+    match payloads.mapM decodeJsonPayload with
     | .ok _ =>
       throw <| IO.userError "expected codec parse error for invalid json payload"
     | .error err =>

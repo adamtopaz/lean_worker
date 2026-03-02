@@ -1,7 +1,7 @@
 module
 
 public import LeanWorker.Server.Types
-public import LeanWorker.Async.Loops
+public import LeanWorker.Transport.Logging
 public import LeanWorker.JsonRpc.Parse
 public import LeanWorker.JsonRpc.Encoding
 public import Std.Sync.Mutex
@@ -25,7 +25,7 @@ where
     tasks.filterM fun task => return (← task.getState) != .finished
 
   sendJson (json : Json) : Async Unit := do
-    let _ ← LeanWorker.Async.sendOrLog server.transport.log "server outbox" server.transport.outbox json
+    let _ ← LeanWorker.Transport.sendOrLog server.transport.log "server outbox" server.transport.outbox json
     return
 
   runHandler

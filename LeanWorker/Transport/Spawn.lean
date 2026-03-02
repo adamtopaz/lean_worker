@@ -8,8 +8,6 @@ public section
 namespace LeanWorker
 namespace Transport
 
-open Lean
-open JsonRpc
 open Std.Internal.IO.Async
 
 structure SpawnConfig where
@@ -32,12 +30,11 @@ abbrev spawnArgs (config : SpawnConfig) : IO.Process.SpawnArgs :=
     stderr := config.stderr
   }
 
-def spawnStdioTransportWithCodec
+def spawnStdioClientTransport
     (config : SpawnConfig)
-    (frameSpec : FrameSpec)
-    (codec : Codec Incoming Outgoing)
+    (frameSpec : FrameSpec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) :
-    Async (Transport (Except JsonRpc.Error Incoming) Outgoing) := do
+    Async ClientTransport := do
   let child ← IO.Process.spawn (spawnArgs config)
   let (stdinHandle, child) ← child.takeStdin
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
@@ -45,20 +42,31 @@ def spawnStdioTransportWithCodec
   let shutdownAction : Async Unit := do
     let _ ← child.wait
     return
-  Transport.transportFromStreams
+  clientTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec
-    codec
     log
     shutdownAction
 
-def spawnStdioTransport
+def spawnStdioServerTransport
     (config : SpawnConfig)
     (frameSpec : FrameSpec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) :
-    Async (Transport (Except JsonRpc.Error Lean.Json) Lean.Json) :=
-  spawnStdioTransportWithCodec config frameSpec JsonRpc.jsonCodec (log := log)
+    Async ServerTransport := do
+  let child ← IO.Process.spawn (spawnArgs config)
+  let (stdinHandle, child) ← child.takeStdin
+  let stdinStream := IO.FS.Stream.ofHandle stdinHandle
+  let stdoutStream := IO.FS.Stream.ofHandle child.stdout
+  let shutdownAction : Async Unit := do
+    let _ ← child.wait
+    return
+  serverTransportFromStreams
+    stdoutStream
+    stdinStream
+    frameSpec
+    log
+    shutdownAction
 
 end Transport
 end LeanWorker

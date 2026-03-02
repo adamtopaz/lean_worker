@@ -1,7 +1,6 @@
 module
 
 public import LeanWorker
-public import LeanWorker.Transport.Tcp
 public import LeanWorker.Transport.Streams
 public import LeanWorkerTest.FullServer
 public import Std.Internal.Async.Basic
@@ -18,20 +17,16 @@ open Std.Internal.IO.Async
 
 inductive TransportMode where
   | stdio
-  | tcp
 deriving BEq
 
 inductive FramingMode where
   | newline
   | contentLength
-  | httpLike
 deriving BEq
 
 structure CliConfig where
   transport : TransportMode := .stdio
   framing : FramingMode := .newline
-  host : String := "127.0.0.1"
-  port : UInt16 := 41000
   logLevel : Transport.LogLevel := .info
   maxTasks? : Option Nat := none
   name : String := FullServer.defaultContext.name
@@ -45,10 +40,8 @@ def usage : String :=
       "Usage: full_server [options]",
       "",
       "Options:",
-      "  --transport stdio|tcp",
-      "  --framing newline|content-length|http-like",
-      "  --host <host> (tcp only)",
-      "  --port <port> (tcp only)",
+      "  --transport stdio",
+      "  --framing newline|content-length",
       "  --log-level debug|info|warn|error",
       "  --max-tasks <n>",
       "  --name <string>",
@@ -84,7 +77,6 @@ def stderrLogger
 def parseTransportMode (value : String) : Except String TransportMode :=
   match value.toLower with
   | "stdio" => return .stdio
-  | "tcp" => return .tcp
   | _ => throw s!"invalid transport: {value}"
 
 def parseFramingMode (value : String) : Except String FramingMode :=
@@ -92,8 +84,6 @@ def parseFramingMode (value : String) : Except String FramingMode :=
   | "newline" => return .newline
   | "content-length" => return .contentLength
   | "contentlength" => return .contentLength
-  | "http-like" => return .httpLike
-  | "httplike" => return .httpLike
   | _ => throw s!"invalid framing: {value}"
 
 def parseLogLevel (value : String) : Except String Transport.LogLevel :=
@@ -109,32 +99,6 @@ def parseNat (value : String) (label : String) : Except String Nat :=
   | some n => return n
   | none => throw s!"invalid {label}: {value}"
 
-def parsePort (value : String) : Except String UInt16 := do
-  let n ← parseNat value "port"
-  if n <= 65535 then
-    return UInt16.ofNat n
-  else
-    throw s!"port out of range: {value}"
-
-def parseOctet (value : String) : Except String UInt8 := do
-  let n ← parseNat value "ipv4 octet"
-  if n <= 255 then
-    return UInt8.ofNat n
-  else
-    throw s!"invalid ipv4 octet: {value}"
-
-def parseHost (value : String) : Except String Std.Net.IPv4Addr := do
-  if value == "localhost" then
-    return Std.Net.IPv4Addr.ofParts 127 0 0 1
-  match value.splitOn "." with
-  | [a, b, c, d] =>
-    let a ← parseOctet a
-    let b ← parseOctet b
-    let c ← parseOctet c
-    let d ← parseOctet d
-    return Std.Net.IPv4Addr.ofParts a b c d
-  | _ => throw s!"invalid host: {value}"
-
 def parseArgsAux (cfg : CliConfig) : List String → Except String CliConfig
   | [] => return cfg
   | "--transport" :: value :: rest => do
@@ -143,11 +107,6 @@ def parseArgsAux (cfg : CliConfig) : List String → Except String CliConfig
   | "--framing" :: value :: rest => do
     let framing ← parseFramingMode value
     parseArgsAux { cfg with framing := framing } rest
-  | "--host" :: value :: rest =>
-    parseArgsAux { cfg with host := value } rest
-  | "--port" :: value :: rest => do
-    let port ← parsePort value
-    parseArgsAux { cfg with port := port } rest
   | "--log-level" :: value :: rest => do
     let logLevel ← parseLogLevel value
     parseArgsAux { cfg with logLevel := logLevel } rest
@@ -178,12 +137,6 @@ def parseArgs (args : List String) : Except String CliConfig :=
 def frameSpecFromMode : FramingMode → Transport.FrameSpec
   | .newline => .newline
   | .contentLength => .contentLength
-  | .httpLike =>
-    .httpLike
-      {
-        startLine := "HTTP/1.1 200 OK",
-        headers := [("Content-Type", "application/json")]
-      }
 
 def buildContext (cfg : CliConfig) : FullServer.FullContext :=
   {
@@ -195,7 +148,7 @@ def buildContext (cfg : CliConfig) : FullServer.FullContext :=
 
 def runServer
     (cfg : CliConfig)
-    (transport : Transport.Transport (Except Error Json) Json)
+    (transport : LeanWorker.Transport.ServerTransport)
     (state : Std.Mutex FullServer.FullState) : Async Unit := do
   let server : Server FullServer.FullContext FullServer.FullState :=
     { FullServer.server transport with maxTasks := cfg.maxTasks? }
@@ -206,34 +159,9 @@ def runStdio (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit)
   let stdout ← IO.getStdout
   let frameSpec := frameSpecFromMode cfg.framing
   let transport ← Async.block <|
-    LeanWorker.Transport.jsonTransportFromStreams stdin stdout frameSpec log
+    LeanWorker.Transport.serverTransportFromStreams stdin stdout frameSpec log
   let state ← Std.Mutex.new FullServer.defaultState
   Async.block <| runServer cfg transport state
-
-partial def waitLoop : IO Unit := do
-  IO.sleep 1000
-  waitLoop
-
-def runTcp (cfg : CliConfig) (log : Transport.LogLevel → String → IO Unit) : IO Unit := do
-  let addr ←
-    match parseHost cfg.host with
-    | .ok host =>
-      pure <| Std.Net.SocketAddress.v4 { addr := host, port := cfg.port }
-    | .error message =>
-      throw <| IO.userError message
-  let frameSpec := frameSpecFromMode cfg.framing
-  let sharedState ← Std.Mutex.new FullServer.defaultState
-  let listener ← Async.block <|
-    Transport.Tcp.listenJsonTransport
-      addr
-      (fun transport => runServer cfg transport sharedState)
-      frameSpec
-      (log := log)
-  log .info s!"listening on {cfg.host}:{cfg.port}"
-  try
-    waitLoop
-  finally
-    Async.block listener.shutdown
 
 def main (args : List String) : IO UInt32 := do
   if args.contains "--help" then
@@ -252,9 +180,6 @@ def main (args : List String) : IO UInt32 := do
     match cfg.transport with
     | .stdio =>
       runStdio cfg log
-      return 0
-    | .tcp =>
-      runTcp cfg log
       return 0
 
 end LeanWorkerTest

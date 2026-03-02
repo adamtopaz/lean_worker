@@ -33,7 +33,7 @@ def runStdioClientServer (frameSpec : Transport.FrameSpec := .newline) : IO Unit
   let stdout ← IO.getStdout
   let log ← Transport.stderrLogger "SERVER"
   let transport ← Async.block <|
-    Transport.jsonTransportFromStreams stdin stdout frameSpec log
+    Transport.serverTransportFromStreams stdin stdout frameSpec log
   let server : Server Unit Unit :=
     {
       handlers := handlers,

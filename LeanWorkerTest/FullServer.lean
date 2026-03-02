@@ -26,7 +26,7 @@ def defaultState : FullState :=
   emptyState
 
 def server
-    (transport : Transport.Transport (Except Error Lean.Json) Lean.Json)
+    (transport : LeanWorker.Transport.ServerTransport)
     : Server FullContext FullState :=
   {
     handlers := handlers,
@@ -35,7 +35,7 @@ def server
   }
 
 def run
-    (transport : Transport.Transport (Except Error Lean.Json) Lean.Json)
+    (transport : LeanWorker.Transport.ServerTransport)
     (ctx : FullContext := defaultContext)
     (state : Std.Mutex FullState) : Async Unit :=
   Server.run (server transport) ctx state

@@ -62,7 +62,7 @@ def spawnManagedClient : IO ManagedClient := do
   let raw ← spawnRawClient
   let log ← LeanWorker.Transport.stderrLogger "TESTCLIENT"
   let transport ← Async.block <|
-    LeanWorker.Transport.jsonTransportFromStreams raw.stdout raw.stdin .newline log
+    LeanWorker.Transport.clientTransportFromStreams raw.stdout raw.stdin .newline log
   let client ← Async.block <| LeanWorker.Client.getClient transport
   return { client, child := raw.child }
 

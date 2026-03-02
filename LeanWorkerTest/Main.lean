@@ -8,7 +8,6 @@ public import LeanWorkerTest.Tests.Batch
 public import LeanWorkerTest.Tests.Errors
 public import LeanWorkerTest.Tests.State
 public import LeanWorkerTest.Tests.Notifications
-public import LeanWorkerTest.Tests.Http
 
 public section
 
@@ -21,11 +20,6 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "content-length framing round trip" LeanWorkerTest.testContentLengthFramingRoundTrip
   LeanWorkerTest.runTest "content-length framing partial" LeanWorkerTest.testContentLengthFramingPartialSecondFrame
   LeanWorkerTest.runTest "content-length missing header" LeanWorkerTest.testContentLengthFramingMissingHeader
-  LeanWorkerTest.runTest "http-like framing round trip" LeanWorkerTest.testHttpLikeFramingRoundTrip
-  LeanWorkerTest.runTest "http-like missing start line" LeanWorkerTest.testHttpLikeFramingMissingStartLine
-  LeanWorkerTest.runTest "json codec round trip" LeanWorkerTest.testJsonCodecRoundTrip
-  LeanWorkerTest.runTest "json codec invalid utf8" LeanWorkerTest.testJsonCodecInvalidUtf8
-  LeanWorkerTest.runTest "json codec invalid json" LeanWorkerTest.testJsonCodecInvalidJson
   LeanWorkerTest.runTest "content-length with json codec" LeanWorkerTest.testContentLengthFramingWithJsonCodec
   LeanWorkerTest.runTest "content-length invalid payload" LeanWorkerTest.testContentLengthFramingWithJsonCodecInvalidPayload
   LeanWorkerTest.runTest "parse error" LeanWorkerTest.testParseError
@@ -47,8 +41,3 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "custom error" LeanWorkerTest.testCustomError
   LeanWorkerTest.runTest "internal error" LeanWorkerTest.testInternalError
   LeanWorkerTest.runTest "parallel sleep" LeanWorkerTest.testParallelSleep
-  LeanWorkerTest.runTest "http ping" LeanWorkerTest.testHttpPing
-  LeanWorkerTest.runTest "http concurrent" LeanWorkerTest.testHttpConcurrent
-  LeanWorkerTest.runTest "http invalid json" LeanWorkerTest.testHttpInvalidJson
-  LeanWorkerTest.runTest "http malformed header" LeanWorkerTest.testHttpMalformedHeader
-  LeanWorkerTest.runTest "http closed connection" LeanWorkerTest.testHttpClosedConnection

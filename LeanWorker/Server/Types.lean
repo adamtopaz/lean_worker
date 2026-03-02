@@ -124,7 +124,7 @@ def NotificationRegistry.addStateless
 structure Server (Context State : Type) where
   handlers : HandlerRegistry Context State
   notifications : NotificationRegistry Context State
-  transport : Transport.Transport (Except Error Json) Json
+  transport : LeanWorker.Transport.ServerTransport
   maxTasks : Option Nat := none
 
 end Server
