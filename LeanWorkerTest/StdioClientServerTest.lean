@@ -290,4 +290,55 @@ def testTransportWriterTimeoutStillRunsShutdownAction : IO Unit := do
   let ran ← shutdownRan.atomically get
   assert ran "shutdownAction should still run when writer shutdown fails"
 
+def testTransportNewlinePartialFrameAtEofReturnsError : IO Unit := do
+  let lines : Std.Mutex (List String) ← Std.Mutex.new ["{\"jsonrpc\":\"2.0\"", ""]
+  let readStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => pure (),
+      getLine := lines.atomically do
+        match ← get with
+        | [] => return ""
+        | line :: rest =>
+          set rest
+          return line
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let writeStream : IO.FS.Stream :=
+    {
+      flush := pure (),
+      read := fun _ => pure ByteArray.empty,
+      write := fun _ => pure (),
+      getLine := pure "",
+      putStr := fun _ => pure (),
+      isTty := pure false
+    }
+  let transport ← Async.block <|
+    Transport.clientTransportFromStreams
+      readStream
+      writeStream
+      .newline
+      Transport.silentLogger
+  match ← Async.block <| await <| ← transport.inbox.recv with
+  | some (.error err) =>
+    assert (err.code == Error.parseError.code)
+      s!"unexpected error code for partial newline frame: {err.code}"
+  | some (.ok json) =>
+    throw <| IO.userError s!"expected framing error for partial newline frame, got json: {Json.compress json}"
+  | none =>
+    throw <| IO.userError "expected framing error before inbox close"
+  match ← Async.block <| await <| ← transport.inbox.recv with
+  | none =>
+    pure ()
+  | some _ =>
+    throw <| IO.userError "expected inbox to close after partial newline framing error"
+  let shutdownResult ← Async.block transport.shutdown
+  match shutdownResult with
+  | .ok _ =>
+    pure ()
+  | .error message =>
+    throw <| IO.userError s!"unexpected shutdown failure after newline EOF test: {message}"
+
 end LeanWorkerTest

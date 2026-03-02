@@ -113,7 +113,13 @@ private partial def readNewlineLoop
     (buffer : ByteArray := ByteArray.empty) : Async Unit := do
   let line := (← readStream.getLine)
   if line.isEmpty then
-    LeanWorker.Transport.closeOrLog log "json inbox" inbox
+    if buffer.isEmpty then
+      LeanWorker.Transport.closeOrLog log "json inbox" inbox
+    else
+      let err := Framing.framingError "unexpected EOF while reading newline-delimited payload"
+      let sent ← LeanWorker.Transport.sendOrLog log "json inbox" inbox (.error err)
+      if sent then
+        LeanWorker.Transport.closeOrLog log "json inbox" inbox
   else
     let buffer := buffer ++ line.toUTF8
     match Framing.decodeNewlineBytes buffer with
@@ -197,24 +203,6 @@ private partial def awaitTaskWithTimeout
       IO.sleep pollMs
       awaitTaskWithTimeout task remainingPolls pollMs
 
-private partial def awaitTaskResultWithTimeout
-    (task : AsyncTask α)
-    (remainingPolls : Nat)
-    (pollMs : UInt32 := 20) : Async (Except String (Option α)) := do
-  match remainingPolls with
-  | 0 =>
-    return .ok none
-  | remainingPolls + 1 =>
-    if (← task.getState) == .finished then
-      try
-        let result ← await task
-        return .ok (some result)
-      catch err =>
-        return .error s!"task failed while awaiting completion: {err}"
-    else
-      IO.sleep pollMs
-      awaitTaskResultWithTimeout task remainingPolls pollMs
-
 private def transportFromStreamsCore
     (readStream writeStream : IO.FS.Stream)
     (frameSpec : FrameSpec)
@@ -256,22 +244,7 @@ private def transportFromStreamsCore
     if writerError?.isSome then
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
     let shutdownResult? ←
-      match writerError? with
-      | none =>
-        pure (some (← shutdownAction))
-      | some _ =>
-        let shutdownTask : AsyncTask (Except String Unit) ← async shutdownAction
-        match ← awaitTaskResultWithTimeout shutdownTask 25 with
-        | .ok (some result) =>
-          pure (some result)
-        | .ok none =>
-          let message := "shutdown action did not finish in degraded shutdown"
-          LeanWorker.Transport.logError log message
-          pure (some (.error message))
-        | .error err =>
-          let message := s!"shutdown action task failed during degraded shutdown: {err}"
-          LeanWorker.Transport.logError log message
-          pure (some (.error message))
+      pure (some (← shutdownAction))
     let shutdownError? :=
       match shutdownResult? with
       | some (.error message) => some message

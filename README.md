@@ -48,7 +48,7 @@ lake exe full_server -- --transport stdio --framing content-length
 - `LeanWorker/JsonRpc/*`: JSON-RPC types, parsing, encoding, structured params
 - `LeanWorker/Transport/Types.lean`: `ServerTransport` and `ClientTransport`
 - `LeanWorker/Transport/Streams.lean`: stream-based JSON transports
-- `LeanWorker/Transport/Spawn.lean`: spawn stdio client/server transport helpers
+- `LeanWorker/Transport/Spawn.lean`: spawn stdio client transport helper
 - `LeanWorker/Transport/Logging.lean`: async logging/channel helpers
 - `LeanWorker/Framing/*`: newline/content-length framing
 - `LeanWorker/Server/*`: server registry/types/runtime

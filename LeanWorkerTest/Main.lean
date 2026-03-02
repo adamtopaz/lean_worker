@@ -20,6 +20,7 @@ def main : IO Unit := do
   LeanWorkerTest.runTest "client shutdown catches transport exception" LeanWorkerTest.testClientShutdownCatchesTransportException
   LeanWorkerTest.runTest "transport writer timeout returns error" LeanWorkerTest.testTransportWriterTimeoutReturnsError
   LeanWorkerTest.runTest "transport writer timeout still runs shutdown action" LeanWorkerTest.testTransportWriterTimeoutStillRunsShutdownAction
+  LeanWorkerTest.runTest "transport newline partial frame at eof returns error" LeanWorkerTest.testTransportNewlinePartialFrameAtEofReturnsError
   LeanWorkerTest.runTest "newline framing round trip" LeanWorkerTest.testNewlineFramingRoundTrip
   LeanWorkerTest.runTest "newline framing multiple" LeanWorkerTest.testNewlineFramingMultipleFrames
   LeanWorkerTest.runTest "newline framing partial" LeanWorkerTest.testNewlineFramingPartialFrame
