@@ -1,25 +1,18 @@
 # Integration Test Harness
 
-Integration scripts live under `scripts/integration/` and exercise the full server over multiple framings.
+Integration scripts are in `scripts/integration/`.
 
-Run all integration tests:
+Run:
 
 ```bash
 scripts/integration/run.sh
 ```
 
-## Scripts
+## Active Coverage
 
-- `stdio_newline.sh`: launches `full_server` over stdio + newline framing and checks basic requests.
-- `stdio_framed_streams.sh`: launches `full_server` over stdio with content-length/http-like framing, checks large payload handling, and validates malformed-header parse errors.
-- `tcp_content_length.sh`: uses raw sockets with content-length framing; validates success and error cases.
-- `http_like.sh`: uses `curl` to test HTTP-like framing, including a parse-error case.
+- `stdio_newline.sh`: stdio + newline framing, request/response checks.
+- `stdio_framed_streams.sh`: stdio + content-length framing, large payload and framing behavior.
 
-## Requirements
+## Legacy Scripts
 
-- `python` or `python3` for stdio and TCP scripts
-- `curl` for the HTTP-like script
-
-## Expected Logs
-
-The HTTP-like script sends invalid JSON to verify parse error handling. This produces an expected parse-error line in stderr.
+TCP/HTTP-like scripts remain in `scripts/integration/` as legacy artifacts and are not part of the current supported transport surface.

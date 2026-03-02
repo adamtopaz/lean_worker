@@ -1,13 +1,14 @@
 # Framing
 
-Framing is byte-oriented. It does not parse JSON-RPC messages.
+Framing is byte-oriented and independent of JSON-RPC semantics.
 
-- Header parsing helpers: `LeanWorker/Framing/Parse.lean`
-- Newline framing: `LeanWorker/Framing/Newline.lean`
-- Content-Length framing: `LeanWorker/Framing/ContentLength.lean`
-- HTTP-like framing: `LeanWorker/Framing/HttpLike.lean`
+Implemented in:
 
-Each decoder returns complete payloads plus a remainder buffer:
+- `LeanWorker/Framing/Newline.lean`
+- `LeanWorker/Framing/ContentLength.lean`
+- header helpers in `LeanWorker/Framing/Parse.lean`
+
+Decoder shape:
 
 ```lean
 ByteArray → Except JsonRpc.Error (Array ByteArray × ByteArray)
@@ -15,33 +16,23 @@ ByteArray → Except JsonRpc.Error (Array ByteArray × ByteArray)
 
 ## Newline
 
-- `Framing.encodeNewlineBytes : ByteArray → ByteArray`
-- `Framing.decodeNewlineBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
+- `Framing.encodeNewlineBytes`
+- `Framing.decodeNewlineBytes`
 
-Splits on newline and keeps partial trailing input as remainder.
+Splits frames on trailing newline and returns remainder for partial input.
 
 ## Content-Length
 
-- `Framing.encodeContentLengthBytes : ByteArray → ByteArray`
-- `Framing.decodeContentLengthBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
+- `Framing.encodeContentLengthBytes`
+- `Framing.decodeContentLengthBytes`
 
-Uses `Content-Length: <n>\r\n\r\n<body>` framing.
+Uses `Content-Length: <n>\r\n\r\n<body>`.
 
-## HTTP-like
+In stream mode, the runtime reads headers first, parses `Content-Length`, then reads body bytes until exactly `n` bytes are collected.
 
-- `Framing.HttpLikeConfig`
-- `Framing.encodeHttpLikeBytes : HttpLikeConfig → ByteArray → ByteArray`
-- `Framing.decodeHttpLikeBytes : ByteArray → Except Error (Array ByteArray × ByteArray)`
+## Selecting Framing
 
-Adds start line + headers and still uses `Content-Length` for body boundaries.
+`Transport.FrameSpec` currently supports:
 
-## How It Is Used
-
-You usually choose framing through `Transport.FrameSpec` when constructing a transport:
-
-```lean
-open LeanWorker
-
-let transport ← Async.block <|
-  Transport.jsonTransportFromStreams stdin stdout (.httpLike {}) log
-```
+- `.newline`
+- `.contentLength`

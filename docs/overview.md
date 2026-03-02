@@ -1,40 +1,36 @@
 # Architecture Overview
 
-LeanWorker is an async-first JSON-RPC 2.0 framework for Lean 4.
-
-This repository focuses on JSON-RPC runtime infrastructure. Base64/binary and Lean expression/meta-state serialization live in the `lean_codec` project.
+LeanWorker is an async-first JSON-RPC 2.0 runtime for Lean 4.
 
 ## Layers
 
 1. JSON-RPC types + validation (`LeanWorker/JsonRpc/*`)
-2. Codec (`LeanWorker/Transport/Codec.lean`, `LeanWorker/JsonRpc/Codec.lean`)
-3. Framing (byte payload boundaries in `LeanWorker/Framing/*`)
-4. Protocol transports (`LeanWorker/Transport/Streams.lean`, `LeanWorker/Transport/Tcp.lean`, `LeanWorker/Transport/Spawn.lean`)
-5. Async bridge (`LeanWorker/Async/Loops.lean`)
-6. Server runtime (`LeanWorker/Server.lean`)
-7. Client runtime (`LeanWorker/Client.lean`)
-8. HTTP wrappers (`LeanWorker/Http/*`)
-9. Tests + CLI (`LeanWorkerTest/*`, `scripts/integration/*`)
+2. Framing (`LeanWorker/Framing/*`)
+3. Role-specific transports (`LeanWorker/Transport/Types.lean`)
+4. Stream/spawn transport constructors (`LeanWorker/Transport/Streams.lean`, `LeanWorker/Transport/Spawn.lean`)
+5. Server runtime (`LeanWorker/Server/*`)
+6. Client runtime (`LeanWorker/Client/*`)
+7. Tests + CLI (`LeanWorkerTest/*`, `scripts/integration/*`)
 
 ## Message Flow
 
-```
-protocol bytes (stdio/tcp)
-  -> framing decode/encode (ByteArray frames)
-  -> codec decode/encode (typed messages)
-  -> Transport (Except JsonRpc.Error Incoming) Outgoing
+```text
+stdio bytes
+  -> framing decode (newline/content-length)
+  -> UTF-8 + JSON decode
+  -> ServerTransport/ClientTransport inbox
   -> Server.run / Client.getClient
 ```
 
+Outgoing flow is the reverse: JSON -> UTF-8 bytes -> framing encode -> stdio stream writes.
+
 ## Concurrency Model
 
-- Server handlers run concurrently with optional `maxTasks` limits.
-- Shared server state is synchronized with `Std.Mutex`.
+- Server handles requests concurrently (optional `maxTasks`).
+- Mutable server state is synchronized with `Std.Mutex`.
 - Client tracks pending requests with `Std.Mutex` + `IO.Promise`.
 
-## Where to Start
+## Scope
 
-- Core protocol + validation: `LeanWorker/JsonRpc/Core.lean`, `LeanWorker/JsonRpc/Parse.lean`
-- Stream/TCP/spawn transport APIs: `LeanWorker/Transport/Streams.lean`, `LeanWorker/Transport/Tcp.lean`, `LeanWorker/Transport/Spawn.lean`
-- Framing codecs: `LeanWorker/Framing/Newline.lean`, `LeanWorker/Framing/ContentLength.lean`, `LeanWorker/Framing/HttpLike.lean`
-- Async bridging internals: `LeanWorker/Async/Loops.lean`
+- Supported today: stdio transport + newline/content-length framing.
+- Deferred: TCP/HTTP transport until core Lean HTTP support is available.

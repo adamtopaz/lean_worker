@@ -8,7 +8,7 @@ The server runtime is implemented in `LeanWorker/Server.lean`.
 structure Server (Context State : Type) where
   handlers : HandlerRegistry Context State
   notifications : NotificationRegistry Context State
-  transport : Transport.Transport (Except Error Json) Json
+  transport : Transport.ServerTransport
   maxTasks : Option Nat := none
 ```
 
@@ -86,7 +86,7 @@ def notifications : NotificationRegistry Unit Nat :=
     |>.addStateful "notify.bump" bumpNotification
 ```
 
-This allows you to share state across connections by reusing the same mutex.
+This allows you to share mutable state across concurrently handled requests.
 
 ## Notifications
 

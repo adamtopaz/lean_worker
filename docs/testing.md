@@ -1,22 +1,15 @@
 # Testing
 
-Lean tests are defined under `LeanWorkerTest/` and run via the test runner executable.
+Lean tests live under `LeanWorkerTest/`.
 
-## Run Tests
+Run all tests:
 
 ```bash
 lake build LeanWorkerTest
 lake exe run_tests
 ```
 
-## Integration Suite
+Notes:
 
-```bash
-scripts/integration/run.sh
-```
-
-## Notes
-
-- The parse-error test intentionally logs a codec decode error to stderr (expected).
-- The HTTP-like integration test sends invalid JSON and logs a parse error (expected).
-- Base64/binary and Lean `Expr`/`Meta` codec tests were moved to `lean_codec` and run via `lake exe run_tests` there.
+- The parse-error test intentionally logs a JSON parse error to stderr.
+- HTTP/TCP-specific tests were removed with transport simplification.
