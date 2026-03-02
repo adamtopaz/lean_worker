@@ -119,6 +119,8 @@ where
         let max := Nat.max max 1
         while tasks.size >= max do
           tasks ← filterTasks tasks
+          if tasks.size >= max then
+            IO.sleep 1
       match ← await <| ← server.transport.inbox.recv with
       | none => break
       | some input =>

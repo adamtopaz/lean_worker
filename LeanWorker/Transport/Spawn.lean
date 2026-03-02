@@ -29,27 +29,32 @@ private partial def waitForExitGracefully
 private def shutdownChild
     {cfg : IO.Process.StdioConfig}
     (child : IO.Process.Child cfg)
+    (log : LogLevel → String → IO Unit)
     (timeoutMs? : Option Nat)
-    (pollMs : UInt32 := 20) : Async Unit := do
-  let waitChild : Async Unit := do
+    (pollMs : UInt32 := 20)
+    (postKillTimeoutMs : Nat := 500) : Async Unit := do
+  match timeoutMs? with
+  | none =>
     try
       let _ ← child.wait
       return
     catch _ =>
       return
-  match timeoutMs? with
-  | none =>
-    waitChild
   | some timeoutMs =>
     let pollNat := UInt32.toNat pollMs
     let polls := (timeoutMs + pollNat - 1) / pollNat
     let exited ← waitForExitGracefully child polls pollMs
-    if !exited then
+    if exited then
+      return
+    else
       try
         child.kill
       catch _ =>
-        pure ()
-    waitChild
+        logError log "failed to send terminate signal to child process"
+      let postKillPolls := (postKillTimeoutMs + pollNat - 1) / pollNat
+      let exitedAfterKill ← waitForExitGracefully child postKillPolls pollMs
+      if !exitedAfterKill then
+        logError log s!"child process did not exit within {postKillTimeoutMs}ms after terminate"
 
 structure SpawnConfig where
   cmd : String
@@ -82,8 +87,8 @@ def spawnStdioClientTransport
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
   let stdoutStream := IO.FS.Stream.ofHandle child.stdout
   let shutdownAction : Async Unit := do
-    shutdownChild child config.shutdownTimeoutMs?
-  LeanWorker.Transport.clientTransportFromStreams
+    shutdownChild child log config.shutdownTimeoutMs?
+  clientTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec
@@ -100,8 +105,8 @@ def spawnStdioServerTransport
   let stdinStream := IO.FS.Stream.ofHandle stdinHandle
   let stdoutStream := IO.FS.Stream.ofHandle child.stdout
   let shutdownAction : Async Unit := do
-    shutdownChild child config.shutdownTimeoutMs?
-  LeanWorker.Transport.serverTransportFromStreams
+    shutdownChild child log config.shutdownTimeoutMs?
+  serverTransportFromStreams
     stdoutStream
     stdinStream
     frameSpec

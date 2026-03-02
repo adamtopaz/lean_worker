@@ -206,8 +206,8 @@ private def transportFromStreamsCore
       LeanWorker.Transport.logError log s!"json write task error: {err}"
   let shutdown : Async Unit := do
     LeanWorker.Transport.closeOrLog log "json outbox" outbox
-    await writerTask
     shutdownAction
+    await writerTask
     await readerTask
   return (inbox, outbox, shutdown)
 
