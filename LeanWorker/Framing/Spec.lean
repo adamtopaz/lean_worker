@@ -19,6 +19,7 @@ inductive Spec where
 structure Codec where
   encode : ByteArray → ByteArray
   decode : ByteArray → Except Error (Array ByteArray × ByteArray)
+  pullPayload? : ByteArray → Except Error (Option (ByteArray × ByteArray))
   eofError : Error
 
 private def eofErrorFor : Spec → Error
@@ -30,12 +31,14 @@ def codec : Spec → Codec
     {
       encode := encodeNewlineBytes
       decode := decodeNewlineBytes
+      pullPayload? := pullNewlinePayload?
       eofError := eofErrorFor .newline
     }
   | .contentLength =>
     {
       encode := encodeContentLengthBytes
       decode := decodeContentLengthBytes
+      pullPayload? := pullContentLengthPayload?
       eofError := eofErrorFor .contentLength
     }
 
@@ -45,6 +48,10 @@ def codec : Spec → Codec
 @[inline] def decode
     (spec : Spec) : ByteArray → Except Error (Array ByteArray × ByteArray) :=
   (codec spec).decode
+
+@[inline] def pullPayload?
+    (spec : Spec) : ByteArray → Except Error (Option (ByteArray × ByteArray)) :=
+  (codec spec).pullPayload?
 
 @[inline] def eofError (spec : Spec) : Error :=
   (codec spec).eofError

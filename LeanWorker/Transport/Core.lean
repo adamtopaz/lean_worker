@@ -64,6 +64,23 @@ private def emitPayloads
           continueLoop := false
   return continueLoop
 
+private partial def drainFramedPayloads
+    (codec : Framing.Codec)
+    (log : LogLevel → String → IO Unit)
+    (inbox : Std.CloseableChannel (Except Error Json))
+    (buffer : ByteArray) : Async (Except Error (Bool × ByteArray)) := do
+  match codec.pullPayload? buffer with
+  | .error err =>
+    return .error err
+  | .ok none =>
+    return .ok (true, buffer)
+  | .ok (some (payload, rest)) =>
+    let keepReading ← emitPayloads log inbox #[payload]
+    if keepReading then
+      drainFramedPayloads codec log inbox rest
+    else
+      return .ok (false, rest)
+
 private partial def readJsonLoop
     (source : ByteSource)
     (codec : Framing.Codec)
@@ -79,15 +96,14 @@ private partial def readJsonLoop
       if sent then
         LeanWorker.Transport.closeOrLog log "json inbox" inbox
   | some chunk =>
-    match codec.decode (buffer ++ chunk) with
+    match ← drainFramedPayloads codec log inbox (buffer ++ chunk) with
     | .error err =>
       LeanWorker.Transport.logError log
         s!"framing decode error: {LeanWorker.Transport.errorToString err}"
       let sent ← LeanWorker.Transport.sendOrLog log "json inbox" inbox (.error err)
       if sent then
         readJsonLoop source codec log inbox ByteArray.empty
-    | .ok (payloads, rest) =>
-      let keepReading ← emitPayloads log inbox payloads
+    | .ok (keepReading, rest) =>
       if keepReading then
         readJsonLoop source codec log inbox rest
 

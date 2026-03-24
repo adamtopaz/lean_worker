@@ -49,6 +49,26 @@ def decodeContentLengthBytes
     (buffer : ByteArray) : Except Error (Array ByteArray × ByteArray) :=
   decodeContentLengthAux buffer #[]
 
+def pullContentLengthPayload?
+    (buffer : ByteArray) : Except Error (Option (ByteArray × ByteArray)) := do
+  match findHeaderTerminator buffer with
+  | none =>
+    return none
+  | some headerEnd => do
+    let bodyStart := headerEnd + 4
+    let headerBytes := buffer.extract 0 headerEnd
+    let headerText ←
+      match String.fromUTF8? headerBytes with
+      | some text => Except.ok text
+      | none => Except.error (framingError "invalid UTF-8 in headers")
+    let headers ← parseHeaders headerText
+    let contentLength ← parseContentLength headers
+    if buffer.size < bodyStart + contentLength then
+      return none
+    let bodyBytes := buffer.extract bodyStart (bodyStart + contentLength)
+    let rest := buffer.extract (bodyStart + contentLength) buffer.size
+    return some (bodyBytes, rest)
+
 def encodeContentLengthBytes (payload : ByteArray) : ByteArray :=
   let header := s!"Content-Length: {payload.size}\r\n\r\n"
   header.toUTF8 ++ payload

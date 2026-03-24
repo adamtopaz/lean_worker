@@ -49,6 +49,7 @@ private def serverFrameArg (framing : Framing.Spec) : String :=
   | .contentLength => "--header"
 
 private def spawnTestServer (framing : Framing.Spec) : IO (SpawnedServer × IO.FS.Stream × IO.FS.Stream) := do
+  -- This assumes the test is run from the repo root after `lake build`.
   let child ← IO.Process.spawn {
     cmd := ".lake/build/bin/test_server"
     args := #[serverFrameArg framing]
