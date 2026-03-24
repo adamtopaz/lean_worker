@@ -2,6 +2,7 @@ module
 
 import LeanWorker.Client
 import LeanWorker.Transport
+import LeanWorker.Framing
 
 namespace LeanWorkerTest
 
@@ -9,14 +10,15 @@ open Lean
 open LeanWorker
 open Client
 open Transport
+open Framing
 open JsonRpc
 open Std.Internal.IO.Async
 
 private abbrev SpawnedServer :=
   IO.Process.Child { stdin := .null, stdout := .piped, stderr := .inherit }
 
-private def parseFrameSpec (args : List String) : Except String FrameSpec := do
-  let mut selected? : Option FrameSpec := none
+private def parseFrameSpec (args : List String) : Except String Framing.Spec := do
+  let mut selected? : Option Framing.Spec := none
   for arg in args do
     match arg with
     | "--" =>
@@ -41,15 +43,15 @@ private def parseFrameSpec (args : List String) : Except String FrameSpec := do
       throw s!"unknown flag: {arg}"
   return selected?.getD .newline
 
-private def serverFrameArg (frameSpec : FrameSpec) : String :=
-  match frameSpec with
+private def serverFrameArg (framing : Framing.Spec) : String :=
+  match framing with
   | .newline => "--newline"
   | .contentLength => "--header"
 
-private def spawnTestServer (frameSpec : FrameSpec) : IO (SpawnedServer × IO.FS.Stream × IO.FS.Stream) := do
+private def spawnTestServer (framing : Framing.Spec) : IO (SpawnedServer × IO.FS.Stream × IO.FS.Stream) := do
   let child ← IO.Process.spawn {
-    cmd := "lake"
-    args := #[("exe" : String), "test_server", "--", serverFrameArg frameSpec]
+    cmd := ".lake/build/bin/test_server"
+    args := #[serverFrameArg framing]
     stdin := .piped
     stdout := .piped
     stderr := .inherit
@@ -67,10 +69,10 @@ private def objParams (fields : List (String × Json)) : Json.Structured :=
   | .obj kvs => .obj kvs
   | _ => .obj {}
 
-private def runClientTest (frameSpec : FrameSpec) : IO Unit := do
-  let (child, childStdin, childStdout) ← spawnTestServer frameSpec
+private def runClientTest (framing : Framing.Spec) : IO Unit := do
+  let (child, childStdin, childStdout) ← spawnTestServer framing
   let transport ← Async.block <|
-    clientTransportFromStreams childStdout childStdin frameSpec silentLogger
+    clientTransportFromStreams childStdout childStdin framing silentLogger
   let client ← Async.block <| getClient transport
   try
     let echoParams := objParams
@@ -112,9 +114,9 @@ end LeanWorkerTest
 
 public def main (args : List String) : IO UInt32 := do
   match LeanWorkerTest.parseFrameSpec args with
-  | .ok frameSpec =>
+  | .ok framing =>
     try
-      LeanWorkerTest.runClientTest frameSpec
+      LeanWorkerTest.runClientTest framing
       return 0
     catch err =>
       let stderr ← IO.getStderr

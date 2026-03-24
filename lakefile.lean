@@ -21,6 +21,10 @@ lean_exe test_server where
 lean_exe test_client where
   root := `LeanWorkerTest.TestClient
 
+@[default_target]
+lean_exe test_tcp where
+  root := `LeanWorkerTest.TestTcp
+
 module_facet module_metadata mod : Json := do
   let olean ← (← mod.olean.fetch).await
   let (data, _) ← Lean.readModuleData olean
