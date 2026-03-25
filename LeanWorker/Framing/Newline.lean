@@ -38,6 +38,28 @@ private partial def decodeNewlineAux
 def decodeNewlineBytes (buffer : ByteArray) : Except Error (Array ByteArray × ByteArray) :=
   decodeNewlineAux buffer 0 0 #[]
 
+private partial def pullNewlinePayloadAux
+    (buffer : ByteArray)
+    (index : Nat)
+    (start : Nat) : Except Error (Option (ByteArray × ByteArray)) := do
+  if index < buffer.size then
+    if buffer.get! index == (10 : UInt8) then
+      let rawLine := buffer.extract start index
+      let line := dropTrailingCR rawLine
+      let nextStart := index + 1
+      if line.size == 0 then
+        pullNewlinePayloadAux buffer nextStart nextStart
+      else
+        let rest := buffer.extract nextStart buffer.size
+        return some (line, rest)
+    else
+      pullNewlinePayloadAux buffer (index + 1) start
+  else
+    return none
+
+def pullNewlinePayload? (buffer : ByteArray) : Except Error (Option (ByteArray × ByteArray)) :=
+  pullNewlinePayloadAux buffer 0 0
+
 def encodeNewlineBytes (payload : ByteArray) : ByteArray :=
   payload ++ "\n".toUTF8
 

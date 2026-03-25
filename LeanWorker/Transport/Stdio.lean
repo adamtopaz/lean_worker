@@ -1,7 +1,6 @@
 module
 
-public import LeanWorker.Transport.Types
-public import LeanWorker.Transport.Logging
+public import LeanWorker.Transport.Core
 public import LeanWorker.Framing
 public import LeanWorker.JsonRpc.Parse
 public import Std.Internal.Async.Basic
@@ -17,23 +16,6 @@ open Std.Internal.IO.Async
 
 private def readChunkSize : Nat := 4096
 
-inductive FrameSpec where
-  | newline
-  | contentLength
-deriving BEq, Repr, Inhabited
-
-private def encodeFrame (frameSpec : FrameSpec) : ByteArray → ByteArray :=
-  match frameSpec with
-  | .newline => Framing.encodeNewlineBytes
-  | .contentLength => Framing.encodeContentLengthBytes
-
-private def decodeFrame
-    (frameSpec : FrameSpec) :
-    ByteArray → Except Error (Array ByteArray × ByteArray) :=
-  match frameSpec with
-  | .newline => Framing.decodeNewlineBytes
-  | .contentLength => Framing.decodeContentLengthBytes
-
 private def decodeJsonPayload (payload : ByteArray) : Except Error Json := do
   let text ←
     match String.fromUTF8? payload with
@@ -45,17 +27,12 @@ private def decodeJsonPayload (payload : ByteArray) : Except Error Json := do
 private def encodeJsonPayload (json : Json) : ByteArray :=
   (Json.compress json).toUTF8
 
-private def eofFramingError (frameSpec : FrameSpec) : Error :=
-  match frameSpec with
-  | .newline => Framing.framingError "unexpected EOF while reading newline-framed payload"
-  | .contentLength => Framing.framingError "unexpected EOF while reading content-length-framed payload"
-
 private def writeFramedJson
     (writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec)
+    (framing : Framing.Spec)
     (json : Json) : IO Unit := do
   let payload := encodeJsonPayload json
-  let bytes := encodeFrame frameSpec payload
+  let bytes := Framing.encode framing payload
   writeStream.write bytes
   writeStream.flush
 
@@ -122,13 +99,12 @@ private partial def readNewlineLoop
     if buffer.isEmpty then
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
     else
-      let err := eofFramingError .newline
-      let sent ← LeanWorker.Transport.sendOrLog log "json inbox" inbox (.error err)
+      let sent ← LeanWorker.Transport.sendOrLog log "json inbox" inbox (.error <| Framing.eofError .newline)
       if sent then
         LeanWorker.Transport.closeOrLog log "json inbox" inbox
   else
     let buffer := buffer ++ line.toUTF8
-    match decodeFrame .newline buffer with
+    match Framing.decode .newline buffer with
     | .error err =>
       LeanWorker.Transport.logError log
         s!"framing decode error: {LeanWorker.Transport.errorToString err}"
@@ -176,41 +152,41 @@ private partial def readContentLengthLoop
 
 private def readJsonLoop
     (readStream : IO.FS.Stream)
-    (frameSpec : FrameSpec)
+    (framing : Framing.Spec)
     (log : LogLevel → String → IO Unit)
     (inbox : Std.CloseableChannel (Except Error Json)) : Async Unit :=
-  match frameSpec with
+  match framing with
   | .newline => readNewlineLoop readStream log inbox
   | .contentLength => readContentLengthLoop readStream log inbox
 
 private partial def writeJsonLoop
     (writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec)
+    (framing : Framing.Spec)
     (outbox : Std.CloseableChannel Json) : Async Unit := do
   match ← await <| ← outbox.recv with
   | none =>
     return
   | some json =>
-    writeFramedJson writeStream frameSpec json
-    writeJsonLoop writeStream frameSpec outbox
+    writeFramedJson writeStream framing json
+    writeJsonLoop writeStream framing outbox
 
 private def transportFromStreamsCore
     (readStream writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec)
+    (framing : Framing.Spec)
     (log : LogLevel → String → IO Unit) : Async Transport := do
   let inbox : Std.CloseableChannel (Except Error Json) ← Std.CloseableChannel.new
   let outbox : Std.CloseableChannel Json ← Std.CloseableChannel.new
 
   let _readerTask : AsyncTask Unit ← async do
     try
-      readJsonLoop readStream frameSpec log inbox
+      readJsonLoop readStream framing log inbox
     catch err =>
       LeanWorker.Transport.logError log s!"json read task error: {err}"
       LeanWorker.Transport.closeOrLog log "json inbox" inbox
 
   let _writerTask : AsyncTask Unit ← async do
     try
-      writeJsonLoop writeStream frameSpec outbox
+      writeJsonLoop writeStream framing outbox
     catch err =>
       LeanWorker.Transport.logError log s!"json write task error: {err}"
       LeanWorker.Transport.closeOrLog log "json outbox" outbox
@@ -220,35 +196,35 @@ private def transportFromStreamsCore
 
 def transportFromStreams
     (readStream writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec := .newline)
+    (framing : Framing.Spec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) : Async Transport :=
-  transportFromStreamsCore readStream writeStream frameSpec log
+  transportFromStreamsCore readStream writeStream framing log
 
 def serverTransportFromStreams
     (readStream writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec := .newline)
+    (framing : Framing.Spec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) : Async Transport :=
-  transportFromStreams readStream writeStream frameSpec log
+  transportFromStreams readStream writeStream framing log
 
 def clientTransportFromStreams
     (readStream writeStream : IO.FS.Stream)
-    (frameSpec : FrameSpec := .newline)
+    (framing : Framing.Spec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) : Async Transport :=
-  transportFromStreams readStream writeStream frameSpec log
+  transportFromStreams readStream writeStream framing log
 
 def serverTransportFromStdio
-    (frameSpec : FrameSpec := .newline)
+    (framing : Framing.Spec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) : Async Transport := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  serverTransportFromStreams stdin stdout frameSpec log
+  serverTransportFromStreams stdin stdout framing log
 
 def clientTransportFromStdio
-    (frameSpec : FrameSpec := .newline)
+    (framing : Framing.Spec := .newline)
     (log : LogLevel → String → IO Unit := silentLogger) : Async Transport := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
-  clientTransportFromStreams stdin stdout frameSpec log
+  clientTransportFromStreams stdin stdout framing log
 
 end Transport
 end LeanWorker

@@ -20,6 +20,7 @@ def run (server : Server Context State) (ctx : Context) (state : Std.Mutex State
   let remainingTasks ← mainLoop state
   for task in remainingTasks do
     await task
+  LeanWorker.Transport.closeOrLog server.transport.log "server outbox" server.transport.outbox
 where
   filterTasks (tasks : Array (AsyncTask Unit)) : BaseIO (Array (AsyncTask Unit)) :=
     tasks.filterM fun task => return (← task.getState) != .finished
